@@ -1,0 +1,597 @@
+.board {
+  display: grid;
+  grid-template-columns: minmax(270px, 300px) minmax(220px, 1fr) minmax(270px, 300px);
+  gap: var(--space-md);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .board {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Source countries column */
+.sourceColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.sourceActions {
+  background: rgba(255, 253, 245, 0.86);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  box-shadow: 0 10px 24px rgba(44, 36, 22, 0.06);
+}
+
+/* Destination column */
+.destColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.infoRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* Country cards */
+.countryCard {
+  background: var(--bg-card);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 10px 24px rgba(44, 36, 22, 0.08);
+}
+
+.countryCard > * {
+  position: relative;
+  z-index: 2;
+}
+
+.countryCard[data-country="china"] {
+  border-color: var(--china-border);
+  background-image:
+    linear-gradient(180deg, rgba(255, 249, 240, 0.72), rgba(255, 249, 240, 0.9)),
+    url("/backgrounds/china-card.webp");
+  background-position: center;
+}
+
+.countryCard[data-country="mexico"] {
+  border-color: var(--mexico-border);
+  background-image:
+    linear-gradient(180deg, rgba(246, 252, 246, 0.7), rgba(246, 252, 246, 0.9)),
+    url("/backgrounds/mexico-card.webp");
+  background-position: center;
+}
+
+.countryCard[data-country="us"] {
+  border-color: var(--us-border);
+  background-image:
+    linear-gradient(180deg, rgba(244, 249, 255, 0.72), rgba(244, 249, 255, 0.92)),
+    url("/backgrounds/us-card.webp");
+  background-position: center;
+}
+
+.disrupted {
+  animation: pulse 2s infinite;
+}
+
+.disruptedOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(192, 57, 43, 0.08);
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(192, 57, 43, 0); }
+}
+
+.countryName {
+  font-size: 15px;
+  margin-bottom: 8px;
+  font-family: var(--font-display);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75);
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: blur(6px);
+}
+
+.countryCard[data-country="china"] .countryName { color: var(--china-primary); }
+.countryCard[data-country="mexico"] .countryName { color: var(--mexico-primary); }
+.countryCard[data-country="us"] .countryName { color: var(--us-primary); }
+
+/* Suppliers */
+.supplierList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.supplierBox {
+  width: min(100%, 188px);
+  margin: 0 auto;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(4px);
+}
+
+.reliable {
+  border-left: 3px solid var(--color-reliable);
+}
+
+.unreliable {
+  border-left: 3px dashed var(--color-unreliable);
+}
+
+.supplierLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.orderInput {
+  width: min(100%, 126px);
+  display: block;
+  margin: 0 auto;
+  padding: 4px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  background: white;
+  text-align: center;
+}
+
+.orderInput:focus {
+  outline: none;
+  border-color: var(--us-primary);
+}
+
+.orderInput:disabled {
+  background: #f0ebe0;
+  color: var(--text-light);
+}
+
+.lastOrder {
+  display: block;
+  font-size: 9px;
+  color: var(--text-light);
+  margin-top: 3px;
+  text-align: center;
+}
+
+/* Transit */
+.transitColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  justify-content: flex-start;
+  padding: 4px 0;
+  min-width: 0;
+  align-self: start;
+}
+
+.transitPipeline {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 104px;
+}
+
+.chinaTransitPipeline {
+  min-height: 122px;
+  background-image:
+    linear-gradient(180deg, rgba(255, 249, 240, 0.72), rgba(255, 249, 240, 0.9)),
+    url("/backgrounds/china-transit.webp");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-color: var(--china-border);
+}
+
+.mexicoTransitPipeline {
+  min-height: 122px;
+  background-image:
+    linear-gradient(180deg, rgba(246, 252, 246, 0.72), rgba(246, 252, 246, 0.9)),
+    url("/backgrounds/mexico-transit.webp");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-color: var(--mexico-border);
+}
+
+.usTransitPipeline {
+  min-height: 122px;
+  background-image:
+    linear-gradient(180deg, rgba(244, 249, 255, 0.72), rgba(244, 249, 255, 0.9)),
+    url("/backgrounds/us-transit.webp");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-color: var(--us-border);
+}
+
+.destTransitPipeline {
+  min-height: 94px;
+  padding: 10px 12px;
+}
+
+.transitLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.9px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  text-align: center;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 1px 3px rgba(44, 36, 22, 0.08);
+  backdrop-filter: blur(4px);
+}
+
+.transitBoxes {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.chinaTransitPipeline .transitBoxes {
+  min-height: 64px;
+}
+
+.mexicoTransitPipeline .transitBoxes,
+.usTransitPipeline .transitBoxes {
+  min-height: 64px;
+}
+
+.destTransitPipeline .transitBoxes {
+  min-height: 50px;
+  gap: 6px;
+}
+
+.transitBoxesSpread {
+  justify-content: space-evenly;
+  gap: 0;
+}
+
+.transitBox {
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: var(--bg-card);
+  transition: all 0.3s ease;
+}
+
+.chinaTransitPipeline .transitBox {
+  background: rgba(255, 253, 245, 0.9);
+  backdrop-filter: blur(3px);
+}
+
+.mexicoTransitPipeline .transitBox {
+  background: rgba(250, 255, 250, 0.9);
+  backdrop-filter: blur(3px);
+}
+
+.usTransitPipeline .transitBox {
+  background: rgba(249, 252, 255, 0.9);
+  backdrop-filter: blur(3px);
+}
+
+.transitBoxFull {
+  background: var(--us-light);
+  border-color: var(--us-border);
+}
+
+.transitArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  font-size: 32px;
+  font-weight: 900;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.85), 0 1px 0 rgba(255, 255, 255, 0.85);
+  line-height: 1;
+  position: relative;
+  z-index: 1;
+  transform: scaleX(1.35) scaleY(1.1);
+  transform-origin: center;
+}
+
+.transitArrowSlot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  flex: 0 0 54px;
+  position: relative;
+}
+
+.destTransitPipeline .transitBox {
+  width: 38px;
+  height: 38px;
+}
+
+.destTransitPipeline .transitArrowSlot {
+  width: 40px;
+  flex: 0 0 40px;
+}
+
+.destTransitPipeline .transitArrow {
+  font-size: 28px;
+}
+
+.transitUnits {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--us-primary);
+}
+
+@media (max-width: 900px) {
+  .transitColumn {
+    gap: 14px;
+    justify-content: flex-start;
+    align-self: auto;
+  }
+
+  .transitPipeline,
+  .chinaTransitPipeline,
+  .mexicoTransitPipeline,
+  .usTransitPipeline {
+    min-height: 104px;
+  }
+
+  .destTransitPipeline {
+    min-height: 88px;
+  }
+}
+
+/* Info boxes */
+.infoBox {
+  background: var(--bg-card);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  text-align: center;
+}
+
+.pipelineSummaryBox {
+  text-align: left;
+  padding: 10px 12px;
+}
+
+.pipelineSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pipelineSummaryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 251, 240, 0.86);
+  border: 1px solid rgba(111, 78, 55, 0.18);
+}
+
+.pipelineSummaryLabel {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-light);
+}
+
+.pipelineSummaryValue {
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.infoCompact {
+  padding: 10px 12px;
+}
+
+.infoLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-light);
+  margin-bottom: 4px;
+}
+
+.infoValue {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.infoCompact .infoValue {
+  font-size: 20px;
+}
+
+.planBox {
+  text-align: left;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 168px;
+}
+
+.centerPlanBox {
+  margin-top: 10px;
+  min-height: 208px;
+}
+
+.warningPanel {
+  padding: 12px 14px;
+  text-align: left;
+  border-color: rgba(230, 126, 34, 0.45);
+  background: rgba(255, 248, 239, 0.92);
+}
+
+.warningHeader {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-warning);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.warningList {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.warningItem {
+  color: #a55a16;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.planHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.planHeader .infoLabel {
+  margin-bottom: 0;
+}
+
+.planMetrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.planTotal {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.planTable {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.planTableHead,
+.planRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) 52px 72px 84px;
+  gap: 8px;
+  align-items: center;
+}
+
+.planTableHead {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-light);
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(212, 197, 169, 0.65);
+}
+
+.planRow {
+  font-size: 11px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(212, 197, 169, 0.35);
+}
+
+.planRow:last-child {
+  border-bottom: none;
+}
+
+.planSupplier {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.planEmpty {
+  margin: 0;
+  color: var(--text-light);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .infoRow {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pipelineSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .pipelineSummaryValue {
+    font-size: 18px;
+  }
+
+  .centerPlanBox {
+    margin-top: 4px;
+    min-height: 168px;
+  }
+
+  .planTableHead,
+  .planRow {
+    grid-template-columns: minmax(0, 1.4fr) 48px 68px 78px;
+    gap: 6px;
+  }
+}

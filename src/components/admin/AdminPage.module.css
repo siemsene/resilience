@@ -1,0 +1,59 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-lg);
+}
+
+.section {
+  margin-bottom: var(--space-2xl);
+}
+
+.sectionTitle {
+  font-size: 20px;
+  margin-bottom: var(--space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.applicationList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.applicationCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.applicantInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-sm);
+}

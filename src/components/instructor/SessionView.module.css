@@ -1,0 +1,94 @@
+.sessionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.sessionMeta {
+  display: flex;
+  gap: var(--space-lg);
+  margin-top: var(--space-sm);
+  font-size: 14px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--us-primary);
+  font-size: 18px;
+}
+
+.sessionActions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.section {
+  margin-top: var(--space-lg);
+}
+
+.section h3 {
+  margin-bottom: var(--space-md);
+}
+
+.playerGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-sm);
+}
+
+.playerCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md) !important;
+}
+
+.playerName {
+  font-weight: 600;
+}
+
+.playerStatus {
+  font-size: 12px;
+  color: var(--color-success);
+}
+
+.disruptionList {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.disruptionCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-md) !important;
+  border-color: var(--color-danger) !important;
+  background: #fef5f5 !important;
+  min-width: 150px;
+}
+
+.disruptionCard span {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.progressBar {
+  height: 8px;
+  background: var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-success);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}

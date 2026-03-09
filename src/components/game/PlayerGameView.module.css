@@ -1,0 +1,64 @@
+.gameView {
+  min-height: 100vh;
+  padding: var(--space-md);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.submitArea {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-lg) 0;
+}
+
+.boardSubmitButton {
+  width: 100%;
+}
+
+.boardActionStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.boardRepeatButton {
+  width: 100%;
+}
+
+.repeatHint {
+  margin: -2px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-warning);
+  text-align: left;
+  font-weight: 600;
+}
+
+.warning {
+  color: var(--color-warning);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.waitingOverlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  margin-top: var(--space-md);
+  animation: fadeIn 0.3s ease;
+}
+
+.waitingCount {
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

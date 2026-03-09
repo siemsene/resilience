@@ -1,0 +1,189 @@
+// ============================================================
+// Supply Chain Resilience Game — Type Definitions
+// ============================================================
+
+export type Country = 'china' | 'mexico' | 'us';
+export type SupplierType = 'reliable' | 'unreliable';
+export type SupplierKey = 'chinaReliable' | 'chinaUnreliable' | 'mexReliable' | 'mexUnreliable' | 'usReliable' | 'usUnreliable';
+
+export const SUPPLIER_KEYS: SupplierKey[] = [
+  'chinaReliable', 'chinaUnreliable',
+  'mexReliable', 'mexUnreliable',
+  'usReliable', 'usUnreliable',
+];
+
+export const SUPPLIER_COUNTRY: Record<SupplierKey, Country> = {
+  chinaReliable: 'china', chinaUnreliable: 'china',
+  mexReliable: 'mexico', mexUnreliable: 'mexico',
+  usReliable: 'us', usUnreliable: 'us',
+};
+
+export const SUPPLIER_RELIABLE: Record<SupplierKey, boolean> = {
+  chinaReliable: true, chinaUnreliable: false,
+  mexReliable: true, mexUnreliable: false,
+  usReliable: true, usUnreliable: false,
+};
+
+export const TRANSIT_TURNS: Record<Country, number> = {
+  china: 4,
+  mexico: 2,
+  us: 1,
+};
+
+export const COUNTRY_LABELS: Record<Country, string> = {
+  china: 'China',
+  mexico: 'Mexico',
+  us: 'United States',
+};
+
+export const SUPPLIER_LABELS: Record<SupplierKey, string> = {
+  chinaReliable: 'China Reliable',
+  chinaUnreliable: 'China Unreliable',
+  mexReliable: 'Mexico Reliable',
+  mexUnreliable: 'Mexico Unreliable',
+  usReliable: 'US Reliable',
+  usUnreliable: 'US Unreliable',
+};
+
+// ---- Instructor Status ----
+export type InstructorStatus = 'pending' | 'approved' | 'denied' | 'revoked';
+
+export interface InstructorRecord {
+  uid: string;
+  email: string;
+  displayName: string;
+  institution: string;
+  status: InstructorStatus;
+  appliedAt: number;
+  reviewedAt?: number;
+}
+
+// ---- Session ----
+export type SessionStatus = 'lobby' | 'setup' | 'active' | 'completed' | 'expired';
+export type GamePhase = 'ordering' | 'processing' | 'results';
+
+export interface SessionParams {
+  totalRounds: number;
+  startingCash: number;
+  startingDemand: number;
+  sellingPrice: number;
+  holdingCostPerUnit: number;
+  baseCost: Record<Country, number>;
+  unreliableCostModifier: number;
+  volumeDiscountThresholds: { threshold: number; discount: number }[];
+  maxCapacityPercent: Record<Country, number>;
+  transitTurns: Record<Country, number>;
+  unreliableCancellationChance: number;
+  loyaltyPercent: number;
+  disruptionDuration: number;
+  disruptionsPerCountry: Record<Country, number>;
+  maxNewSupplierOrder: number;
+  maxOrderIncreasePercent: number;
+  minimumOrder: number;
+}
+
+export const DEFAULT_PARAMS: SessionParams = {
+  totalRounds: 30,
+  startingCash: 200000,
+  startingDemand: 1000,
+  sellingPrice: 60,
+  holdingCostPerUnit: 5,
+  baseCost: { china: 20, mexico: 40, us: 80 },
+  unreliableCostModifier: 0.8,
+  volumeDiscountThresholds: [
+    { threshold: 400, discount: 0.10 },
+    { threshold: 1000, discount: 0.25 },
+  ],
+  maxCapacityPercent: { china: 1.0, mexico: 0.4, us: 0.2 },
+  transitTurns: { china: 4, mexico: 2, us: 1 },
+  unreliableCancellationChance: 0.15,
+  loyaltyPercent: 0.5,
+  disruptionDuration: 3,
+  disruptionsPerCountry: { china: 2, mexico: 1, us: 0 },
+  maxNewSupplierOrder: 150,
+  maxOrderIncreasePercent: 1.5,
+  minimumOrder: 100,
+};
+
+export interface DisruptionSchedule {
+  china: number[];
+  mexico: number[];
+  us: number[];
+}
+
+export interface ActiveDisruption {
+  startRound: number;
+  endsAfterRound: number;
+}
+
+export interface PlayerInfo {
+  name: string;
+  joinedAt: number;
+  connected: boolean;
+}
+
+export interface SessionDoc {
+  id: string;
+  instructorUid: string;
+  sessionCode: string;
+  sessionName: string;
+  status: SessionStatus;
+  createdAt: number;
+  expiresAt: number;
+  params: SessionParams;
+  disruptionSchedule: DisruptionSchedule;
+  activeDisruptions: Record<Country, ActiveDisruption | null>;
+  players: Record<string, PlayerInfo>;
+  currentRound: number;
+  currentPhase: GamePhase;
+  submittedPlayers: string[];
+  totalMarketDemand: number;
+}
+
+// ---- Player State ----
+export interface SupplierState {
+  lastOrder: number;
+  maxOrder: number;
+  totalOrdered: number;
+  active: boolean;
+}
+
+export interface TransitState {
+  china: number[];
+  mexico: number[];
+  us: number[];
+}
+
+export interface RoundHistoryEntry {
+  round: number;
+  orders: Record<SupplierKey, number>;
+  allocated: Record<SupplierKey, number>;
+  cancelled: Record<SupplierKey, boolean>;
+  arrivals: number;
+  demand: number;
+  sold: number;
+  unmetDemand: number;
+  extraDemandGained: number;
+  revenue: number;
+  orderCosts: number;
+  holdingCosts: number;
+  profit: number;
+  inventory: number;
+  cash: number;
+  marketDemand: number;
+}
+
+export interface PlayerStateDoc {
+  playerId: string;
+  sessionId: string;
+  playerName: string;
+  cash: number;
+  inventory: number;
+  marketDemand: number;
+  suppliers: Record<SupplierKey, SupplierState>;
+  transit: TransitState;
+  roundHistory: RoundHistoryEntry[];
+}
+
+// ---- Orders ----
+export type OrderMap = Record<SupplierKey, number>;

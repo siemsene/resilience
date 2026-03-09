@@ -1,0 +1,58 @@
+.scheduler {
+  overflow-x: auto;
+  padding: var(--space-sm) 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: 4px;
+}
+
+.label {
+  width: 60px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.timeline {
+  display: flex;
+  gap: 2px;
+}
+
+.roundNum {
+  width: 18px;
+  height: 16px;
+  font-size: 9px;
+  color: var(--text-light);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.cell {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  background: var(--bg-card);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.cell:hover {
+  border-color: var(--text-secondary);
+}
+
+.cellActive {
+  border-color: transparent;
+}
+
+.cellStart {
+  border-color: transparent;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+}

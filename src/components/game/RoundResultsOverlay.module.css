@@ -1,0 +1,134 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(44, 36, 22, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: var(--space-md);
+  animation: overlayIn 0.3s ease;
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  max-width: 600px;
+  width: 100%;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp 0.4s ease;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.title {
+  text-align: center;
+  font-size: 22px;
+  margin-bottom: var(--space-lg);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+}
+
+@media (max-width: 500px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.section {
+  padding: var(--space-md);
+  background: var(--bg-parchment);
+  border-radius: var(--radius-md);
+}
+
+.sectionTitle {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-light);
+  margin-bottom: var(--space-sm);
+}
+
+.bigNumber {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.orderRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 2px 0;
+}
+
+.supplierName {
+  color: var(--text-secondary);
+}
+
+.fulfilled { color: var(--color-success); }
+.partial { color: var(--color-warning); }
+.cancelled { color: var(--color-danger); }
+
+.demandRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 3px 0;
+}
+
+.profitRow {
+  border-top: 1px solid var(--border-color);
+  margin-top: 6px;
+  padding-top: 6px;
+  font-size: 15px;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-around;
+  margin-top: var(--space-lg);
+  padding: var(--space-md);
+  background: var(--bg-dark);
+  color: var(--text-inverse);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+}
+
+.dismiss {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-md);
+  padding: 10px;
+  background: var(--us-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dismiss:hover {
+  background: #1a6da0;
+}

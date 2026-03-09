@@ -1,0 +1,100 @@
+.lobby {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-lg);
+}
+
+.lobbyCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2xl);
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+
+.title {
+  font-size: 28px;
+  margin-bottom: var(--space-sm);
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-lg);
+}
+
+.codeBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-md);
+  background: var(--bg-parchment);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-lg);
+}
+
+.codeLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-light);
+  margin-bottom: 4px;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--us-primary);
+  letter-spacing: 4px;
+}
+
+.playerSection {
+  text-align: left;
+}
+
+.playerHeader {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.playerList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.playerItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px 12px;
+  background: var(--bg-parchment);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+
+.playerItemSelf {
+  background: var(--us-light);
+  font-weight: 600;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-success);
+  flex-shrink: 0;
+}
+
+.youBadge {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--us-primary);
+  font-weight: 600;
+}

@@ -1,0 +1,19 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.email {
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+.headerActions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}

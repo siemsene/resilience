@@ -1,0 +1,88 @@
+:root {
+  /* Board game palette */
+  --bg-parchment: #f5f0e1;
+  --bg-dark: #2c2416;
+  --bg-card: #fffdf5;
+  --bg-card-hover: #faf5e6;
+
+  /* Country colors */
+  --china-primary: #c0392b;
+  --china-light: #f9e5e3;
+  --china-border: #e74c3c;
+  --mexico-primary: #27ae60;
+  --mexico-light: #e3f5ec;
+  --mexico-border: #2ecc71;
+  --us-primary: #2980b9;
+  --us-light: #e1ecf5;
+  --us-border: #3498db;
+
+  /* Semantic */
+  --color-reliable: #2c7a3e;
+  --color-unreliable: #c0392b;
+  --color-warning: #e67e22;
+  --color-danger: #c0392b;
+  --color-success: #27ae60;
+  --color-info: #2980b9;
+  --color-muted: #95a5a6;
+
+  /* Text */
+  --text-primary: #2c2416;
+  --text-secondary: #6b5b4e;
+  --text-light: #95887a;
+  --text-inverse: #fffdf5;
+
+  /* UI */
+  --border-color: #d4c5a9;
+  --border-strong: #b8a88a;
+  --shadow-sm: 0 1px 3px rgba(44, 36, 22, 0.12);
+  --shadow-md: 0 4px 12px rgba(44, 36, 22, 0.15);
+  --shadow-lg: 0 8px 24px rgba(44, 36, 22, 0.2);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Typography */
+  --font-display: 'Georgia', 'Times New Roman', serif;
+  --font-body: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Consolas', 'Courier New', monospace;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* Transit */
+  --transit-box-size: 48px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-parchment);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+input, select, textarea {
+  font-family: var(--font-body);
+}

@@ -1,0 +1,54 @@
+.banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--space-md);
+}
+
+.alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  animation: shakeIn 0.5s ease;
+}
+
+.alert[data-country="china"] {
+  background: var(--china-light);
+  border: 1px solid var(--china-border);
+  color: var(--china-primary);
+}
+
+.alert[data-country="mexico"] {
+  background: var(--mexico-light);
+  border: 1px solid var(--mexico-border);
+  color: #1a7a3e;
+}
+
+.alert[data-country="us"] {
+  background: var(--us-light);
+  border: 1px solid var(--us-border);
+  color: var(--us-primary);
+}
+
+.icon {
+  font-size: 18px;
+}
+
+.duration {
+  margin-left: 6px;
+  font-weight: 400;
+  opacity: 0.8;
+  font-size: 13px;
+}
+
+@keyframes shakeIn {
+  0% { transform: translateX(-10px); opacity: 0; }
+  25% { transform: translateX(5px); }
+  50% { transform: translateX(-3px); }
+  75% { transform: translateX(1px); }
+  100% { transform: translateX(0); opacity: 1; }
+}
