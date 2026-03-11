@@ -8,7 +8,8 @@ interface Props {
   session: SessionDoc;
   playerState: PlayerStateDoc;
   orders: OrderMap;
-  onOrderChange: (key: SupplierKey, value: number) => void;
+  orderInputs: Record<SupplierKey, string>;
+  onOrderChange: (key: SupplierKey, value: string) => void;
   disabled: boolean;
   submitControls?: React.ReactNode;
   validationWarnings?: string[];
@@ -18,6 +19,7 @@ export function GameBoard({
   session,
   playerState,
   orders,
+  orderInputs,
   onOrderChange,
   disabled,
   submitControls,
@@ -38,7 +40,51 @@ export function GameBoard({
 
   const getMaxOrder = (key: SupplierKey): number | null => {
     const supplierState = playerState.suppliers?.[key];
-    return getCurrentSupplierMaxOrder(supplierState);
+    return getCurrentSupplierMaxOrder(supplierState, session.params);
+  };
+
+  const renderSupplierCard = (key: SupplierKey, disrupted: boolean) => {
+    const isReliable = SUPPLIER_RELIABLE[key];
+    const supplierState = playerState.suppliers?.[key];
+    const maxOrder = getMaxOrder(key);
+
+    return (
+      <div key={key} className={`${styles.supplierBox} ${isReliable ? styles.reliable : styles.unreliable}`}>
+        <div className={styles.supplierLabel}>
+          <span>{isReliable ? '\u{1F6E1}' : '\u26A0'}</span>
+          <span>{isReliable ? 'Reliable' : 'Unreliable'}</span>
+        </div>
+        <div className={styles.orderEntryRow}>
+          <input
+            type="number"
+            className={styles.orderInput}
+            value={orderInputs[key] || ''}
+            onChange={e => onOrderChange(key, e.target.value)}
+            placeholder="0"
+            min={0}
+            max={maxOrder || undefined}
+            step={1}
+            disabled={disabled || disrupted}
+          />
+          <button
+            type="button"
+            className={styles.maxOrderBtn}
+            onClick={() => onOrderChange(key, String(maxOrder || 0))}
+            disabled={disabled || disrupted || !maxOrder}
+          >
+            Max
+          </button>
+        </div>
+        {supplierState?.active && (
+          <span className={styles.lastOrder}>
+            Last: {supplierState.lastOrder} | Max: {maxOrder}
+          </span>
+        )}
+        {!supplierState?.active && !disrupted && (
+          <span className={styles.lastOrder}>New (max {maxOrder})</span>
+        )}
+      </div>
+    );
   };
 
   const orderPlan = SUPPLIER_KEYS
@@ -63,10 +109,43 @@ export function GameBoard({
   const orderPlanQuantity = orderPlan.reduce((sum, line) => sum + line.quantity, 0);
   const orderPlanTotal = orderPlan.reduce((sum, line) => sum + line.lineTotal, 0);
   const orderPlanAverageUnitPrice = orderPlanQuantity > 0 ? orderPlanTotal / orderPlanQuantity : 0;
-  const pipelineIncomingNextTurn = [chinaTransit, mexicoTransit, usTransit]
-    .reduce((sum, transit) => sum + (transit[transit.length - 1] || 0), 0);
-  const pipelineIncomingTurnAfter = [chinaTransit, mexicoTransit, usTransit]
-    .reduce((sum, transit) => sum + (transit[transit.length - 2] || 0), 0);
+  const requestedOrdersByCountry = {
+    us: SUPPLIER_KEYS
+      .filter((key) => SUPPLIER_COUNTRY[key] === 'us')
+      .reduce((sum, key) => sum + (orders[key] || 0), 0),
+    mexico: SUPPLIER_KEYS
+      .filter((key) => SUPPLIER_COUNTRY[key] === 'mexico')
+      .reduce((sum, key) => sum + (orders[key] || 0), 0),
+  };
+  const pipelineForecast = Array.from({ length: 4 }, (_, index) => ({
+    round: session.currentRound + index + 1,
+    units: [chinaTransit, mexicoTransit, usTransit]
+      .reduce((sum, transit) => sum + (transit[transit.length - 1 - index] || 0), 0),
+  })).reverse();
+  const requestedPipelinePlan = pipelineForecast.map((entry) => {
+    if (entry.round === session.currentRound + 3) {
+      return { ...entry, label: 'Req MX', units: requestedOrdersByCountry.mexico, tone: 'mexico' as const };
+    }
+    if (entry.round === session.currentRound + 2) {
+      return { ...entry, label: 'Req US', units: requestedOrdersByCountry.us, tone: 'us' as const };
+    }
+    return { ...entry, label: '', units: 0, tone: 'empty' as const };
+  });
+  const projectedBalancePlan = pipelineForecast.map((entry, index) => {
+    const projectedUnits = entry.units + requestedPipelinePlan[index].units;
+    const balance = projectedUnits - playerState.marketDemand;
+    return {
+      round: entry.round,
+      balance,
+      tone: balance > 0 ? 'surplus' as const : balance < 0 ? 'shortfall' as const : 'balanced' as const,
+    };
+  });
+  const renderDisruptionOverlay = (country: Country) => (
+    <div className={styles.disruptedOverlay}>
+      <span className={styles.disruptedLabel}>Disrupted</span>
+      <span className={styles.disruptedSubtext}>{COUNTRY_LABELS[country]} supply offline</span>
+    </div>
+  );
 
   return (
     <div className={styles.board}>
@@ -82,41 +161,12 @@ export function GameBoard({
               className={`${styles.countryCard} ${disrupted ? styles.disrupted : ''}`}
               data-country={country}
             >
-              {disrupted && <div className={styles.disruptedOverlay} />}
+              {disrupted && renderDisruptionOverlay(country)}
               <h3 className={styles.countryName}>{COUNTRY_LABELS[country]}</h3>
 
               <div className={styles.supplierList}>
                 {suppliers.map(key => {
-                  const isReliable = SUPPLIER_RELIABLE[key];
-                  const supplierState = playerState.suppliers?.[key];
-                  const maxOrder = getMaxOrder(key);
-
-                  return (
-                    <div key={key} className={`${styles.supplierBox} ${isReliable ? styles.reliable : styles.unreliable}`}>
-                      <div className={styles.supplierLabel}>
-                        <span>{isReliable ? '\u{1F6E1}' : '\u26A0'}</span>
-                        <span>{isReliable ? 'Reliable' : 'Unreliable'}</span>
-                      </div>
-                      <input
-                        type="number"
-                        className={styles.orderInput}
-                        value={orders[key] || ''}
-                        onChange={e => onOrderChange(key, parseInt(e.target.value) || 0)}
-                        placeholder="0"
-                        min={0}
-                        max={maxOrder || undefined}
-                        disabled={disabled || disrupted}
-                      />
-                      {supplierState?.active && (
-                        <span className={styles.lastOrder}>
-                          Last: {supplierState.lastOrder} | Max: {maxOrder}
-                        </span>
-                      )}
-                      {!supplierState?.active && !disrupted && (
-                        <span className={styles.lastOrder}>New (max {maxOrder})</span>
-                      )}
-                    </div>
-                  );
+                  return renderSupplierCard(key, disrupted);
                 })}
               </div>
             </div>
@@ -179,7 +229,7 @@ export function GameBoard({
         <div className={`${styles.infoBox} ${styles.planBox} ${styles.centerPlanBox}`}>
           <div className={styles.planHeader}>
             <div>
-              <div className={styles.infoLabel}>Current Order Plan</div>
+              <div className={styles.infoLabel}>Requested Order Plan</div>
               <div className={styles.planMetrics}>
                 <span>Total Qty {orderPlanQuantity.toLocaleString()}</span>
                 <span>Avg Unit {currencyFormatter.format(orderPlanAverageUnitPrice)}</span>
@@ -206,7 +256,7 @@ export function GameBoard({
               ))}
             </div>
           ) : (
-            <p className={styles.planEmpty}>Enter an order to build the current cost plan.</p>
+            <p className={styles.planEmpty}>Enter an order to build the current request estimate.</p>
           )}
         </div>
       </div>
@@ -214,41 +264,12 @@ export function GameBoard({
       {/* Right: US destination */}
       <div className={styles.destColumn}>
         {/* US suppliers */}
-        <div className={styles.countryCard} data-country="us">
-          {isDisrupted('us') && <div className={styles.disruptedOverlay} />}
+        <div className={`${styles.countryCard} ${isDisrupted('us') ? styles.disrupted : ''}`} data-country="us">
+          {isDisrupted('us') && renderDisruptionOverlay('us')}
           <h3 className={styles.countryName}>{COUNTRY_LABELS.us}</h3>
           <div className={styles.supplierList}>
             {SUPPLIER_KEYS.filter(k => SUPPLIER_COUNTRY[k] === 'us').map(key => {
-              const isReliable = SUPPLIER_RELIABLE[key];
-              const supplierState = playerState.suppliers?.[key];
-              const maxOrder = getMaxOrder(key);
-
-              return (
-                <div key={key} className={`${styles.supplierBox} ${isReliable ? styles.reliable : styles.unreliable}`}>
-                  <div className={styles.supplierLabel}>
-                    <span>{isReliable ? '\u{1F6E1}' : '\u26A0'}</span>
-                    <span>{isReliable ? 'Reliable' : 'Unreliable'}</span>
-                  </div>
-                  <input
-                    type="number"
-                    className={styles.orderInput}
-                    value={orders[key] || ''}
-                    onChange={e => onOrderChange(key, parseInt(e.target.value) || 0)}
-                    placeholder="0"
-                    min={0}
-                    max={maxOrder || undefined}
-                    disabled={disabled || isDisrupted('us')}
-                  />
-                  {supplierState?.active && (
-                    <span className={styles.lastOrder}>
-                      Last: {supplierState.lastOrder} | Max: {maxOrder}
-                    </span>
-                  )}
-                  {!supplierState?.active && (
-                    <span className={styles.lastOrder}>New (max {maxOrder})</span>
-                  )}
-                </div>
-              );
+              return renderSupplierCard(key, isDisrupted('us'));
             })}
           </div>
         </div>
@@ -277,14 +298,48 @@ export function GameBoard({
         <div className={`${styles.infoBox} ${styles.pipelineSummaryBox}`}>
           <div className={styles.infoLabel}>Order Pipeline</div>
           <div className={styles.pipelineSummaryGrid}>
-            <div className={styles.pipelineSummaryItem}>
-              <span className={styles.pipelineSummaryLabel}>Turn After</span>
-              <span className={styles.pipelineSummaryValue}>{pipelineIncomingTurnAfter.toLocaleString()}</span>
-            </div>
-            <div className={styles.pipelineSummaryItem}>
-              <span className={styles.pipelineSummaryLabel}>Next Turn</span>
-              <span className={styles.pipelineSummaryValue}>{pipelineIncomingNextTurn.toLocaleString()}</span>
-            </div>
+            {pipelineForecast.map((entry) => (
+              <div key={entry.round} className={styles.pipelineSummaryItem}>
+                <span className={styles.pipelineSummaryLabel}>Round {entry.round}</span>
+                <span className={styles.pipelineSummaryValue}>{entry.units.toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.pipelineRequestGrid}>
+            {requestedPipelinePlan.map((entry) => (
+              <div
+                key={`req-${entry.round}`}
+                className={`${styles.pipelineRequestItem} ${
+                  entry.tone === 'us'
+                    ? styles.pipelineRequestUs
+                    : entry.tone === 'mexico'
+                      ? styles.pipelineRequestMexico
+                      : styles.pipelineRequestEmpty
+                }`}
+              >
+                {entry.label && <span className={styles.pipelineRequestLabel}>{entry.label}</span>}
+                <span className={styles.pipelineRequestValue}>{entry.units > 0 ? entry.units.toLocaleString() : ''}</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.pipelineBalanceGrid}>
+            {projectedBalancePlan.map((entry) => (
+              <div
+                key={`bal-${entry.round}`}
+                className={`${styles.pipelineBalanceItem} ${
+                  entry.tone === 'surplus'
+                    ? styles.pipelineBalanceSurplus
+                    : entry.tone === 'shortfall'
+                      ? styles.pipelineBalanceShortfall
+                      : styles.pipelineBalanceNeutral
+                }`}
+              >
+                <span className={styles.pipelineBalanceLabel}>Proj +/-</span>
+                <span className={styles.pipelineBalanceValue}>
+                  {entry.balance > 0 ? '+' : ''}{entry.balance.toLocaleString()}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 

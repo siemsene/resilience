@@ -1,3 +1,53 @@
+.listLayout {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, rgba(27, 125, 181, 0.08), rgba(255, 255, 255, 0.96));
+}
+
+.toolbarCopy {
+  min-width: 0;
+}
+
+.toolbarTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+}
+
+.toolbarSubtitle {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.noticeCard {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.confirmRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.confirmActions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -5,6 +55,8 @@
 }
 
 .sessionCard {
+  display: grid;
+  gap: var(--space-md);
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -18,16 +70,18 @@
   color: inherit;
 }
 
-.sessionCard:hover {
+.sessionCard:hover,
+.sessionCard:focus-visible {
   border-color: var(--us-primary);
   box-shadow: var(--shadow-md);
+  outline: none;
 }
 
 .cardHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-md);
+  gap: var(--space-md);
 }
 
 .sessionName {
@@ -46,7 +100,7 @@
 .cardBody {
   display: flex;
   gap: var(--space-lg);
-  margin-bottom: var(--space-md);
+  flex-wrap: wrap;
 }
 
 .stat {
@@ -70,8 +124,29 @@
 }
 
 .cardFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
   font-size: 12px;
   color: var(--text-light);
   border-top: 1px solid var(--border-color);
   padding-top: var(--space-sm);
+}
+
+@media (max-width: 720px) {
+  .toolbar,
+  .confirmRow,
+  .cardFooter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .confirmActions {
+    justify-content: stretch;
+  }
+
+  .confirmActions > * {
+    flex: 1 1 0;
+  }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
 import type { SessionDoc, PlayerStateDoc, SupplierKey, OrderMap } from '../../types';
@@ -18,23 +18,51 @@ interface Props {
   sessionId: string;
 }
 
+interface DraftState {
+  identity: string;
+  orderInputs: Record<SupplierKey, string>;
+  submitError: string;
+}
+
 function createEmptyOrders(): OrderMap {
   const emptyOrders: Record<string, number> = {};
   SUPPLIER_KEYS.forEach(key => { emptyOrders[key] = 0; });
   return emptyOrders as OrderMap;
 }
 
+function createEmptyOrderInputs(): Record<SupplierKey, string> {
+  const emptyOrders: Record<string, string> = {};
+  SUPPLIER_KEYS.forEach(key => { emptyOrders[key] = ''; });
+  return emptyOrders as Record<SupplierKey, string>;
+}
+
+function parseOrderInput(value: string): { valid: true; value: number } | { valid: false } {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return { valid: true, value: 0 };
+  }
+
+  if (!/^\d+$/.test(trimmed)) {
+    return { valid: false };
+  }
+
+  return { valid: true, value: parseInt(trimmed, 10) };
+}
+
 export function PlayerGameView({ session, playerState, playerId, sessionId }: Props) {
-  const [rawOrders, setRawOrders] = useState<OrderMap>(() => createEmptyOrders());
+  const roundIdentity = `${playerId}:${session.currentRound}`;
+  const [draft, setDraft] = useState<DraftState>(() => ({
+    identity: roundIdentity,
+    orderInputs: createEmptyOrderInputs(),
+    submitError: '',
+  }));
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const [confirmingResults, setConfirmingResults] = useState(false);
+  const [resultsError, setResultsError] = useState('');
   const latestRound = playerState.roundHistory.length > 0
     ? playerState.roundHistory[playerState.roundHistory.length - 1]
     : null;
   const latestRoundNumber = latestRound?.round ?? 0;
-  const [dismissedRound, setDismissedRound] = useState<number>(
-    session.currentRound > 1 ? latestRoundNumber : 0
-  );
   const repeatSourceOrders = useMemo(() => {
     if (latestRound?.orders) {
       return latestRound.orders;
@@ -65,45 +93,75 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
     ));
   }, [repeatSourceOrders, session.activeDisruptions]);
 
-  // Auto-dismiss new round results after the animation window.
-  useEffect(() => {
-    if (latestRoundNumber === 0 || latestRoundNumber <= dismissedRound) {
-      return;
-    }
-    const timer = setTimeout(() => setDismissedRound(latestRoundNumber), 8000);
-    return () => clearTimeout(timer);
-  }, [dismissedRound, latestRoundNumber]);
+  const draftIsCurrent = draft.identity === roundIdentity;
+  const rawOrderInputs = draftIsCurrent ? draft.orderInputs : createEmptyOrderInputs();
+  const submitError = draftIsCurrent ? draft.submitError : '';
 
-  useEffect(() => {
-    setRawOrders(createEmptyOrders());
-    setSubmitError('');
-  }, [playerId, session.currentRound]);
+  const updateDraft = (updater: (state: DraftState) => DraftState) => {
+    setDraft((prev) => {
+      const currentState = prev.identity === roundIdentity
+        ? prev
+        : { identity: roundIdentity, orderInputs: createEmptyOrderInputs(), submitError: '' };
+      return updater(currentState);
+    });
+  };
 
-  const hasSubmitted = session.submittedPlayers?.includes(playerId);
-  const showResults = latestRoundNumber > 0 && latestRoundNumber > dismissedRound;
+  const setDraftSubmitError = (message: string) => {
+    updateDraft((currentState) => ({ ...currentState, submitError: message }));
+  };
 
-  // Disrupted countries cannot be ordered from in the current round.
-  // Keep the UI and payload in sync by forcing those order values to 0.
+  const clearDraftError = () => {
+    updateDraft((currentState) => ({ ...currentState, submitError: '' }));
+  };
+
+  const hasSubmitted = playerState.lastSubmittedRound === session.currentRound;
+  const resultsRound = session.resultsRound ?? 0;
+  const displayRound = session.currentPhase === 'results' && resultsRound > 0
+    ? resultsRound
+    : session.currentRound;
+  const showingCurrentResults = session.currentPhase === 'results'
+    && latestRoundNumber > 0
+    && latestRoundNumber === resultsRound;
+  const hasConfirmedCurrentResults = showingCurrentResults
+    && playerState.lastConfirmedResultsRound === resultsRound;
+  const showResults = showingCurrentResults && !hasConfirmedCurrentResults;
+  const otherPlayerCount = Math.max(0, session.playerCount - 1);
+  const otherSubmittedCount = Math.max(0, session.submittedCount - (hasSubmitted ? 1 : 0));
+  const showSubmissionAlert = session.currentPhase === 'ordering' && session.playerCount > 1;
+  const submissionAlert = showSubmissionAlert
+    ? `${otherSubmittedCount.toLocaleString()} / ${otherPlayerCount.toLocaleString()} others submitted`
+    : null;
+  const submissionAlertUrgent = showSubmissionAlert && !hasSubmitted && otherSubmittedCount >= otherPlayerCount;
+
   const orders = useMemo<OrderMap>(() => {
-    const next = { ...rawOrders } as OrderMap;
+    const next = {} as OrderMap;
     for (const key of SUPPLIER_KEYS) {
+      const parsed = parseOrderInput(rawOrderInputs[key] || '');
+      next[key] = parsed.valid ? parsed.value : 0;
       const country = SUPPLIER_COUNTRY[key];
       if (session.activeDisruptions[country]) {
         next[key] = 0;
       }
     }
     return next;
-  }, [rawOrders, session.activeDisruptions]);
+  }, [rawOrderInputs, session.activeDisruptions]);
   const minimumOrder = session.params.minimumOrder ?? 100;
 
-  const handleOrderChange = (key: SupplierKey, value: number) => {
+  const handleOrderChange = (key: SupplierKey, value: string) => {
     const country = SUPPLIER_COUNTRY[key];
     if (session.activeDisruptions[country]) {
-      setRawOrders(prev => ({ ...prev, [key]: 0 }));
+      updateDraft((currentState) => ({
+        ...currentState,
+        orderInputs: { ...currentState.orderInputs, [key]: '' },
+        submitError: '',
+      }));
       return;
     }
-    setSubmitError('');
-    setRawOrders(prev => ({ ...prev, [key]: Math.max(0, value) }));
+    updateDraft((currentState) => ({
+      ...currentState,
+      orderInputs: { ...currentState.orderInputs, [key]: value },
+      submitError: '',
+    }));
   };
 
   const getSupplierLabel = (key: SupplierKey): string => {
@@ -111,36 +169,35 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
     return `${COUNTRY_LABELS[country]} ${key.toLowerCase().includes('reliable') && !key.toLowerCase().includes('unreliable') ? 'Reliable' : 'Unreliable'}`;
   };
 
-  const validateOrders = (): string[] => {
+  const validationWarnings = useMemo(() => {
     const warnings: string[] = [];
 
     for (const key of SUPPLIER_KEYS) {
-      const val = orders[key] || 0;
+      const rawValue = rawOrderInputs[key] || '';
+      const parsed = parseOrderInput(rawValue);
       const supplierLabel = getSupplierLabel(key);
-      if (val < 0) {
-        warnings.push(`Invalid order for ${supplierLabel}.`);
+      if (!parsed.valid) {
+        warnings.push(`Order for ${supplierLabel} must be a non-negative whole number.`);
         continue;
       }
+      const val = orders[key] || 0;
       if (val > 0 && val < minimumOrder) {
         warnings.push(`Order for ${supplierLabel} must be at least ${minimumOrder} units or 0.`);
       }
 
       const country = SUPPLIER_COUNTRY[key];
-
-      // Can't order from disrupted country
       if (session.activeDisruptions[country] && val > 0) {
         warnings.push(`Cannot order from ${COUNTRY_LABELS[country]} — supply disrupted!`);
       }
 
-      // Validate order constraints
       const supplierState = playerState.suppliers?.[key];
       if (supplierState?.active) {
-        const maxOrder = getCurrentSupplierMaxOrder(supplierState);
+        const maxOrder = getCurrentSupplierMaxOrder(supplierState, session.params);
         if (val > maxOrder) {
           warnings.push(`Order for ${supplierLabel} exceeds max (${maxOrder}). Last order: ${supplierState.lastOrder}.`);
         }
       } else {
-        const maxOrder = getCurrentSupplierMaxOrder(supplierState);
+        const maxOrder = getCurrentSupplierMaxOrder(supplierState, session.params);
         if (val > maxOrder) {
           warnings.push(`${supplierLabel} is limited to ${maxOrder} units.`);
         }
@@ -148,12 +205,7 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
     }
 
     return warnings;
-  };
-
-  const validationWarnings = useMemo(
-    () => validateOrders(),
-    [minimumOrder, orders, playerState.suppliers, session.activeDisruptions]
-  );
+  }, [minimumOrder, orders, playerState.suppliers, rawOrderInputs, session.activeDisruptions, session.params]);
   const submitDisabled = submitting || validationWarnings.length > 0;
   const repeatDisabled = submitting || !repeatSourceOrders || repeatBlockedCountries.length > 0;
 
@@ -162,12 +214,13 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
       return;
     }
 
-    setSubmitError('');
-    const nextOrders = createEmptyOrders();
+    clearDraftError();
+    const nextOrderInputs = createEmptyOrderInputs();
     for (const key of SUPPLIER_KEYS) {
-      nextOrders[key] = repeatSourceOrders[key] || 0;
+      const value = repeatSourceOrders[key] || 0;
+      nextOrderInputs[key] = value > 0 ? String(value) : '';
     }
-    setRawOrders(nextOrders);
+    updateDraft((currentState) => ({ ...currentState, orderInputs: nextOrderInputs, submitError: '' }));
   };
 
   const handleSubmit = async () => {
@@ -175,26 +228,44 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
       return;
     }
 
-    setSubmitError('');
+    clearDraftError();
     setSubmitting(true);
     try {
       const submitFn = httpsCallable(functions, 'submitOrders');
       await submitFn({ sessionId, playerId, orders });
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to submit orders');
+      setDraftSubmitError(err instanceof Error ? err.message : 'Failed to submit orders');
     }
     setSubmitting(false);
+  };
+
+  const handleConfirmResults = async () => {
+    if (!showResults) {
+      return;
+    }
+
+    setResultsError('');
+    setConfirmingResults(true);
+    try {
+      const confirmFn = httpsCallable(functions, 'confirmRoundResults');
+      await confirmFn({ sessionId, playerId });
+    } catch (err) {
+      setResultsError(err instanceof Error ? err.message : 'Failed to confirm round results');
+    }
+    setConfirmingResults(false);
   };
 
   return (
     <div className={styles.gameView}>
       <RoundHeader
-        round={session.currentRound}
+        round={displayRound}
         totalRounds={session.params.totalRounds}
         cash={playerState.cash}
         inventory={playerState.inventory}
         marketDemand={playerState.marketDemand}
         phase={hasSubmitted ? 'waiting' : session.currentPhase}
+        submissionAlert={submissionAlert}
+        submissionAlertUrgent={submissionAlertUrgent}
       />
 
       <DisruptionBanner activeDisruptions={session.activeDisruptions} />
@@ -203,8 +274,9 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
         session={session}
         playerState={playerState}
         orders={orders}
+        orderInputs={rawOrderInputs}
         onOrderChange={handleOrderChange}
-        disabled={hasSubmitted || submitting}
+        disabled={hasSubmitted || submitting || session.currentPhase !== 'ordering'}
         validationWarnings={validationWarnings}
         submitControls={!hasSubmitted && session.currentPhase === 'ordering' ? (
           <div className={styles.boardActionStack}>
@@ -241,20 +313,38 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
       />
 
       {submitError && <p className={s.error} style={{ textAlign: 'center', margin: '12px 0' }}>{submitError}</p>}
+      {showResults && resultsError && <p className={s.error} style={{ textAlign: 'center', margin: '12px 0' }}>{resultsError}</p>}
 
       {hasSubmitted && (
         <div className={styles.waitingOverlay}>
           <div className={s.spinner} />
           <span>Waiting for other players...</span>
           <span className={styles.waitingCount}>
-            {session.submittedPlayers?.length || 0} / {Object.keys(session.players).length} submitted
+            {session.submittedCount} / {session.playerCount} submitted
+          </span>
+        </div>
+      )}
+
+      {hasConfirmedCurrentResults && session.currentPhase === 'results' && (
+        <div className={styles.waitingOverlay}>
+          <div className={s.spinner} />
+          <span>Waiting for the other players to confirm the round summary...</span>
+          <span className={styles.waitingCount}>
+            {(session.resultsConfirmedCount || 0).toLocaleString()} / {session.playerCount.toLocaleString()} confirmed
           </span>
         </div>
       )}
 
       {showResults && latestRound && (
-        <RoundResultsOverlay round={latestRound} onDismiss={() => setDismissedRound(latestRoundNumber)} />
+        <RoundResultsOverlay
+          round={latestRound}
+          onConfirm={handleConfirmResults}
+          confirming={confirmingResults}
+          confirmedCount={session.resultsConfirmedCount || 0}
+          playerCount={session.playerCount}
+        />
       )}
     </div>
   );
 }
+

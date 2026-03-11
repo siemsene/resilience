@@ -1,203 +1,144 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
-import { SUPPLIER_KEYS, SUPPLIER_COUNTRY, OrderMap, SessionDoc, PlayerStateDoc } from './types';
-import { processRound } from './gameLogic';
+import { SUPPLIER_KEYS, SUPPLIER_COUNTRY, OrderMap, PlayerStateDoc, SessionDoc } from './types';
 import { getCurrentSupplierMaxOrder } from './orderLimits';
+import { executeRoundProcessing } from './roundProcessing';
+import { sessionInstructorStateRef, sessionPlayerRef, sessionPublicStateRef, sessionRef } from './sessionState';
 
 const db = admin.firestore();
 
 export const submitOrders = onCall(async (request) => {
-  const { sessionId, playerId, orders } = request.data;
+  const { sessionId, playerId, orders } = request.data as {
+    sessionId?: string;
+    playerId?: string;
+    orders?: OrderMap;
+  };
 
   if (!sessionId || !playerId || !orders) {
     throw new HttpsError('invalid-argument', 'Missing required fields');
   }
 
-  const sessionRef = db.collection('sessions').doc(sessionId);
+  const sessionDocRef = sessionRef(sessionId);
+  const sessionSnap = await sessionDocRef.get();
+  if (!sessionSnap.exists) {
+    throw new HttpsError('not-found', 'Session not found');
+  }
 
-  return db.runTransaction(async (transaction) => {
-    const sessionSnap = await transaction.get(sessionRef);
+  const session = { id: sessionSnap.id, ...sessionSnap.data() } as SessionDoc;
+  if (session.status !== 'active') {
+    throw new HttpsError('failed-precondition', 'Game is not active');
+  }
+  if (session.currentPhase !== 'ordering') {
+    throw new HttpsError('failed-precondition', 'Not in ordering phase');
+  }
 
-    if (!sessionSnap.exists) {
+  const playerRosterSnap = await sessionPlayerRef(sessionId, playerId).get();
+  if (!playerRosterSnap.exists) {
+    throw new HttpsError('not-found', 'Player not found');
+  }
+
+  const playerStateRef = sessionDocRef.collection('playerStates').doc(playerId);
+  const playerStateSnap = await playerStateRef.get();
+  if (!playerStateSnap.exists) {
+    throw new HttpsError('not-found', 'Player state not found');
+  }
+
+  const playerState = playerStateSnap.data() as PlayerStateDoc;
+  const orderMap = orders as OrderMap;
+  const minimumOrder = session.params.minimumOrder ?? 100;
+
+  for (const key of SUPPLIER_KEYS) {
+    const val = orderMap[key] || 0;
+    if (val < 0 || !Number.isInteger(val)) {
+      throw new HttpsError('invalid-argument', `Invalid order for ${key}`);
+    }
+
+    if (val > 0 && val < minimumOrder) {
+      throw new HttpsError('invalid-argument', `Order for ${key} must be at least ${minimumOrder} units or 0`);
+    }
+
+    const country = SUPPLIER_COUNTRY[key];
+    if (session.activeDisruptions[country] && val > 0) {
+      throw new HttpsError('invalid-argument', `Cannot order from ${country} — supply disrupted`);
+    }
+
+    const supplierState = playerState.suppliers?.[key];
+    const maxOrder = getCurrentSupplierMaxOrder(supplierState, session.params);
+    if (val > maxOrder) {
+      throw new HttpsError('invalid-argument', supplierState?.active
+        ? `Order for ${key} exceeds max (${maxOrder}). Last order: ${supplierState.lastOrder}`
+        : `New supplier ${key} limited to ${maxOrder} units`);
+    }
+  }
+
+  let shouldProcessRound = false;
+
+  const result = await db.runTransaction(async (transaction) => {
+    const freshSessionSnap = await transaction.get(sessionDocRef);
+    const instructorStateSnap = await transaction.get(sessionInstructorStateRef(sessionId));
+    const freshPlayerStateSnap = await transaction.get(playerStateRef);
+
+    if (!freshSessionSnap.exists) {
       throw new HttpsError('not-found', 'Session not found');
     }
-
-    const session = sessionSnap.data()!;
-
-    if (session.status !== 'active') {
-      throw new HttpsError('failed-precondition', 'Game is not active');
-    }
-
-    if (session.currentPhase !== 'ordering') {
-      throw new HttpsError('failed-precondition', 'Not in ordering phase');
-    }
-
-    if (!session.players[playerId]) {
-      throw new HttpsError('not-found', 'Player not found');
-    }
-
-    if (session.submittedPlayers?.includes(playerId)) {
-      throw new HttpsError('already-exists', 'Orders already submitted for this round');
-    }
-
-    // Get player state for validation
-    const playerStateRef = db.collection('sessions').doc(sessionId)
-      .collection('playerStates').doc(playerId);
-    const playerStateSnap = await transaction.get(playerStateRef);
-
-    if (!playerStateSnap.exists) {
+    if (!freshPlayerStateSnap.exists) {
       throw new HttpsError('not-found', 'Player state not found');
     }
 
-    const playerState = playerStateSnap.data()!;
-    const orderMap = orders as OrderMap;
-    const minimumOrder = session.params.minimumOrder ?? 100;
-
-    // Validate orders
-    for (const key of SUPPLIER_KEYS) {
-      const val = orderMap[key] || 0;
-      if (val < 0 || !Number.isInteger(val)) {
-        throw new HttpsError('invalid-argument', `Invalid order for ${key}`);
-      }
-
-      if (val > 0 && val < minimumOrder) {
-        throw new HttpsError('invalid-argument',
-          `Order for ${key} must be at least ${minimumOrder} units or 0`);
-      }
-
-      const country = SUPPLIER_COUNTRY[key];
-
-      // Check disruption — can't order from disrupted country
-      if (session.activeDisruptions[country] && val > 0) {
-        throw new HttpsError('invalid-argument',
-          `Cannot order from ${country} — supply disrupted`);
-      }
-
-      // Validate order constraints
-      const supplierState = playerState.suppliers?.[key];
-      if (supplierState?.active) {
-        const maxOrder = getCurrentSupplierMaxOrder(supplierState);
-        if (val > maxOrder) {
-          throw new HttpsError('invalid-argument',
-            `Order for ${key} exceeds max (${maxOrder}). Last order: ${supplierState.lastOrder}`);
-        }
-      } else {
-        const maxOrder = getCurrentSupplierMaxOrder(supplierState);
-        if (val > maxOrder) {
-          throw new HttpsError('invalid-argument',
-            `New supplier ${key} limited to ${maxOrder} units`);
-        }
-      }
+    const freshSession = { id: freshSessionSnap.id, ...freshSessionSnap.data() } as SessionDoc;
+    const freshPlayerState = freshPlayerStateSnap.data() as PlayerStateDoc;
+    if (freshSession.status !== 'active') {
+      throw new HttpsError('failed-precondition', 'Game is not active');
+    }
+    if (freshSession.currentPhase !== 'ordering') {
+      throw new HttpsError('failed-precondition', 'Not in ordering phase');
+    }
+    if (freshPlayerState.lastSubmittedRound === freshSession.currentRound) {
+      throw new HttpsError('already-exists', 'Orders already submitted for this round');
     }
 
-    // Write order to subcollection
-    const orderRef = db.collection('sessions').doc(sessionId)
-      .collection('rounds').doc(String(session.currentRound))
-      .collection('orders').doc(playerId);
+    const submittedPlayerIds = (instructorStateSnap.data()?.submittedPlayerIds || []) as string[];
+    if (submittedPlayerIds.includes(playerId)) {
+      throw new HttpsError('already-exists', 'Orders already submitted for this round');
+    }
+
+    const orderRef = sessionDocRef.collection('rounds').doc(String(freshSession.currentRound)).collection('orders').doc(playerId);
     transaction.set(orderRef, { orders: orderMap, submittedAt: Date.now() });
+    transaction.set(playerStateRef, { lastSubmittedRound: freshSession.currentRound }, { merge: true });
 
-    // Update submitted players
-    const newSubmitted = [...(session.submittedPlayers || []), playerId];
-    const allSubmitted = newSubmitted.length === Object.keys(session.players).length;
+    const nextSubmittedPlayerIds = [...submittedPlayerIds, playerId];
+    shouldProcessRound = nextSubmittedPlayerIds.length >= freshSession.playerCount;
 
-    if (!allSubmitted) {
-      transaction.update(sessionRef, { submittedPlayers: newSubmitted });
-      return { success: true, roundProcessed: false };
+    if (shouldProcessRound) {
+      transaction.update(sessionDocRef, {
+        submittedCount: nextSubmittedPlayerIds.length,
+        currentPhase: 'processing',
+      });
+      transaction.set(sessionPublicStateRef(sessionId), {
+        sessionId,
+        submittedCount: nextSubmittedPlayerIds.length,
+        currentPhase: 'processing',
+      }, { merge: true });
+    } else {
+      transaction.update(sessionDocRef, { submittedCount: nextSubmittedPlayerIds.length });
+      transaction.set(sessionPublicStateRef(sessionId), {
+        sessionId,
+        submittedCount: nextSubmittedPlayerIds.length,
+      }, { merge: true });
     }
 
-    // All players submitted — process the round
-    transaction.update(sessionRef, {
-      submittedPlayers: newSubmitted,
-      currentPhase: 'processing',
-    });
+    transaction.set(sessionInstructorStateRef(sessionId), {
+      sessionId,
+      submittedPlayerIds: nextSubmittedPlayerIds,
+      updatedAt: Date.now(),
+    }, { merge: true });
 
-    return { success: true, roundProcessed: true };
-  }).then(async (result) => {
-    if (result.roundProcessed) {
-      await executeRoundProcessing(sessionId);
-    }
-    return result;
+    return { success: true, roundProcessed: shouldProcessRound };
   });
+
+  if (shouldProcessRound) {
+    await executeRoundProcessing(sessionId);
+  }
+
+  return result;
 });
-
-async function executeRoundProcessing(sessionId: string) {
-  const sessionRef = db.collection('sessions').doc(sessionId);
-  const sessionSnap = await sessionRef.get();
-  const session = sessionSnap.data()!;
-  const round = session.currentRound;
-
-  // Get all player states
-  const playerStatesSnap = await db.collection('sessions').doc(sessionId)
-    .collection('playerStates').get();
-
-  // Get all orders for this round
-  const ordersSnap = await db.collection('sessions').doc(sessionId)
-    .collection('rounds').doc(String(round))
-    .collection('orders').get();
-
-  const ordersMap: Record<string, OrderMap> = {};
-  ordersSnap.forEach((doc) => {
-    ordersMap[doc.id] = doc.data().orders;
-  });
-
-  const playerRoundData = playerStatesSnap.docs.map((doc) => ({
-    playerId: doc.id,
-    orders: ordersMap[doc.id] || {},
-    state: { ...doc.data() as PlayerStateDoc },
-  }));
-
-  const { updatedStates, newActiveDisruptions, newTotalMarketDemand, gameCompleted } =
-    processRound(
-      round,
-      playerRoundData,
-      session.params,
-      session.disruptionSchedule,
-      session.activeDisruptions,
-    );
-
-  // Batch write all updates
-  const batch = db.batch();
-
-  for (const [pid, state] of Object.entries(updatedStates)) {
-    const ref = db.collection('sessions').doc(sessionId)
-      .collection('playerStates').doc(pid);
-    batch.update(ref, state);
-  }
-
-  const nextRound = round + 1;
-
-  // Check for next round's disruptions
-  const nextActiveDisruptions = { ...newActiveDisruptions };
-  if (!gameCompleted) {
-    for (const country of ['china', 'mexico', 'us'] as const) {
-      // Clear expired
-      if (nextActiveDisruptions[country] && nextRound > nextActiveDisruptions[country]!.endsAfterRound) {
-        nextActiveDisruptions[country] = null;
-      }
-      // Start new
-      if (session.disruptionSchedule[country]?.includes(nextRound)) {
-        nextActiveDisruptions[country] = {
-          startRound: nextRound,
-          endsAfterRound: nextRound + session.params.disruptionDuration - 1,
-        };
-      }
-    }
-  }
-
-  const sessionUpdate: Partial<SessionDoc> = {
-    activeDisruptions: nextActiveDisruptions,
-    totalMarketDemand: newTotalMarketDemand,
-    currentPhase: 'results',
-  };
-
-  if (gameCompleted) {
-    sessionUpdate.status = 'completed';
-  } else {
-    sessionUpdate.currentRound = nextRound;
-    sessionUpdate.currentPhase = 'ordering';
-    sessionUpdate.submittedPlayers = [];
-  }
-
-  batch.update(sessionRef, sessionUpdate);
-  await batch.commit();
-}

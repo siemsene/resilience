@@ -70,9 +70,50 @@
   border-radius: var(--radius-md);
 }
 
+.phaseCluster {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .phaseLabel {
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.submissionAlert {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+}
+
+.submissionAlertUrgent {
+  background: rgba(198, 52, 52, 0.2);
+  border-color: rgba(255, 107, 107, 0.45);
+  box-shadow: 0 0 0 1px rgba(255, 107, 107, 0.1);
+  animation: submissionAlertBlink 1s ease-in-out infinite;
+}
+
+.submissionAlertLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
+}
+
+@keyframes submissionAlertBlink {
+  0%, 100% {
+    background: rgba(198, 52, 52, 0.18);
+    border-color: rgba(255, 107, 107, 0.4);
+  }
+
+  50% {
+    background: rgba(255, 107, 107, 0.38);
+    border-color: rgba(255, 160, 160, 0.78);
+  }
 }

@@ -3,6 +3,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
 import type { SessionDoc, SupplierKey, Country } from '../../types';
 import { SUPPLIER_KEYS, SUPPLIER_COUNTRY, SUPPLIER_RELIABLE, COUNTRY_LABELS } from '../../types';
+import { calculateUnitCost } from '../../utils/pricing';
 import s from '../../styles/shared.module.css';
 import styles from './InitialSetup.module.css';
 
@@ -30,22 +31,8 @@ export function InitialSetup({ session, playerId, sessionId }: Props) {
       const amount = allocations[key] || 0;
       if (amount <= 0) continue;
       const country = SUPPLIER_COUNTRY[key];
-      const isUnreliable = !SUPPLIER_RELIABLE[key];
       const transitTurns = session.params.transitTurns[country];
-
-      let unitCost = session.params.baseCost[country];
-      if (isUnreliable) unitCost *= session.params.unreliableCostModifier;
-
-      // Volume discount
-      let discount = 0;
-      const sorted = [...session.params.volumeDiscountThresholds].sort((a, b) => b.threshold - a.threshold);
-      for (const tier of sorted) {
-        if (amount >= tier.threshold) {
-          discount = tier.discount;
-          break;
-        }
-      }
-      unitCost *= (1 - discount);
+      const unitCost = calculateUnitCost(session.params, country, SUPPLIER_RELIABLE[key], amount);
       cost += amount * transitTurns * unitCost;
     }
     return cost;
@@ -116,35 +103,42 @@ export function InitialSetup({ session, playerId, sessionId }: Props) {
                   {session.params.transitTurns[country]} turn{session.params.transitTurns[country] > 1 ? 's' : ''} transit
                 </span>
               </h3>
-              <div className={styles.supplierPair}>
-                {SUPPLIER_KEYS.filter(k => SUPPLIER_COUNTRY[k] === country).map(key => {
-                  const isReliable = SUPPLIER_RELIABLE[key];
-                  return (
-                    <div key={key} className={`${styles.supplierInput} ${isReliable ? styles.reliable : styles.unreliable}`}>
-                      <div className={styles.supplierHeader}>
-                        <span className={styles.supplierIcon}>{isReliable ? '\u{1F6E1}' : '\u26A0'}</span>
-                        <span className={styles.supplierLabel}>
-                          {isReliable ? 'Reliable' : 'Unreliable'}
-                        </span>
-                        <span className={styles.unitCost}>
-                          ${(session.params.baseCost[country] * (isReliable ? 1 : session.params.unreliableCostModifier)).toFixed(2)}/unit
-                        </span>
-                      </div>
-                      <input
-                        type="number"
+                <div className={styles.supplierPair}>
+                  {SUPPLIER_KEYS.filter(k => SUPPLIER_COUNTRY[k] === country).map(key => {
+                    const isReliable = SUPPLIER_RELIABLE[key];
+                    const quantity = allocations[key] || 0;
+                    const unitCost = calculateUnitCost(session.params, country, isReliable, quantity);
+                    const lineCost = quantity * session.params.transitTurns[country] * unitCost;
+                    return (
+                      <div key={key} className={`${styles.supplierInput} ${isReliable ? styles.reliable : styles.unreliable}`}>
+                        <div className={styles.supplierHeader}>
+                          <span className={styles.supplierIcon}>{isReliable ? '\u{1F6E1}' : '\u26A0'}</span>
+                          <span className={styles.supplierLabel}>
+                            {isReliable ? 'Reliable' : 'Unreliable'}
+                          </span>
+                          <span className={styles.unitCost}>
+                           ${unitCost.toFixed(2)}/unit
+                          </span>
+                        </div>
+                        <input
+                          type="number"
                         className={s.input}
                         value={allocations[key] || ''}
                         onChange={e => {
                           const val = parseInt(e.target.value) || 0;
                           setAllocations(prev => ({ ...prev, [key]: Math.max(0, val) }));
                         }}
-                        placeholder="0"
-                        min={0}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+                          placeholder="0"
+                          min={0}
+                        />
+                        <div className={styles.supplierMeta}>
+                          <span>{quantity.toLocaleString()} units</span>
+                          <span>${lineCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} route total</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
             </div>
           ))}
         </div>

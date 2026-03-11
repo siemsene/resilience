@@ -1,58 +1,95 @@
-import type { SupplierState } from './types';
+import type { SessionParams, SupplierState } from './types';
 
-export const MIN_SUPPLIER_MAX_ORDER = 150;
+const DEFAULT_MAX_ORDER_AMPLIFIER = 1.4;
+const DEFAULT_MAX_ORDER_BASELINE = 100;
 
-function sanitizeLimit(value: number): number {
+function getMaxOrderAmplifier(params?: Pick<SessionParams, 'maxOrderIncreasePercent'> | null): number {
+  const amplifier = params?.maxOrderIncreasePercent;
+  return typeof amplifier === 'number' && Number.isFinite(amplifier) && amplifier > 0
+    ? amplifier
+    : DEFAULT_MAX_ORDER_AMPLIFIER;
+}
+
+function getMinimumSupplierMaxOrder(params?: Pick<SessionParams, 'maxOrderIncreasePercent'> | null): number {
+  return Math.max(0, Math.round(DEFAULT_MAX_ORDER_BASELINE * getMaxOrderAmplifier(params)));
+}
+
+function sanitizeOrder(value: number): number {
   if (!Number.isFinite(value)) {
-    return MIN_SUPPLIER_MAX_ORDER;
+    return 0;
   }
 
-  return Math.max(MIN_SUPPLIER_MAX_ORDER, Math.round(value));
+  return Math.max(0, Math.round(value));
 }
 
-export function getInitialSupplierMaxOrder(initialOrder: number): number {
-  if (initialOrder <= 0) {
-    return MIN_SUPPLIER_MAX_ORDER;
+function sanitizeLimit(
+  value: number,
+  params?: Pick<SessionParams, 'maxOrderIncreasePercent'> | null,
+): number {
+  const minimumSupplierMaxOrder = getMinimumSupplierMaxOrder(params);
+  if (!Number.isFinite(value)) {
+    return minimumSupplierMaxOrder;
   }
 
-  return sanitizeLimit(initialOrder * 1.5);
+  return Math.max(minimumSupplierMaxOrder, Math.round(value));
 }
 
-export function getCurrentSupplierMaxOrder(supplierState?: SupplierState | null): number {
+export function getInitialSupplierMaxOrder(
+  initialOrder: number,
+  params?: Pick<SessionParams, 'maxOrderIncreasePercent'> | null,
+): number {
+  const sanitizedOrder = sanitizeOrder(initialOrder);
+  if (sanitizedOrder <= 0) {
+    return getMinimumSupplierMaxOrder(params);
+  }
+
+  return sanitizeLimit(sanitizedOrder * getMaxOrderAmplifier(params), params);
+}
+
+export function getCurrentSupplierMaxOrder(
+  supplierState?: SupplierState | null,
+  params?: Pick<SessionParams, 'maxOrderIncreasePercent'> | null,
+): number {
   if (!supplierState) {
-    return MIN_SUPPLIER_MAX_ORDER;
+    return getMinimumSupplierMaxOrder(params);
   }
 
   if (typeof supplierState.maxOrder === 'number') {
-    return sanitizeLimit(supplierState.maxOrder);
+    return sanitizeLimit(supplierState.maxOrder, params);
   }
 
   if (supplierState.lastOrder > 0) {
-    return sanitizeLimit(supplierState.lastOrder * 1.5);
+    return sanitizeLimit(supplierState.lastOrder * getMaxOrderAmplifier(params), params);
   }
 
-  return MIN_SUPPLIER_MAX_ORDER;
+  return getMinimumSupplierMaxOrder(params);
 }
 
 export function getNextSupplierMaxOrder(
-  previousMaxOrder: number,
+  previousSupplierState: SupplierState | null | undefined,
   placedOrder: number,
+  params?: Pick<SessionParams, 'maxOrderIncreasePercent'> | null,
   blockedByDisruption = false,
 ): number {
-  const currentMaxOrder = sanitizeLimit(previousMaxOrder);
-
+  const currentMaxOrder = getCurrentSupplierMaxOrder(previousSupplierState, params);
   if (blockedByDisruption) {
     return currentMaxOrder;
   }
 
-  if (placedOrder >= currentMaxOrder) {
-    return sanitizeLimit(currentMaxOrder * 1.5);
+  const currentOrder = sanitizeOrder(placedOrder);
+  const priorOrder = sanitizeOrder(previousSupplierState?.lastOrder || 0);
+  const amplifier = getMaxOrderAmplifier(params);
+
+  if (currentOrder > priorOrder) {
+    return sanitizeLimit(currentOrder * amplifier, params);
   }
 
-  if (placedOrder > 0) {
+  if (currentOrder === priorOrder) {
     return currentMaxOrder;
   }
 
-  const decreaseAmount = (currentMaxOrder - placedOrder) * 0.5;
-  return sanitizeLimit(currentMaxOrder - decreaseAmount);
+  return sanitizeLimit(
+    (currentMaxOrder * 0.7) + ((currentOrder * amplifier) * 0.3),
+    params,
+  );
 }

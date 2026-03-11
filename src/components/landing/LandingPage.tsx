@@ -2,13 +2,41 @@ import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
-import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions, ADMIN_EMAIL } from '../../firebase';
+import { auth, functions, ADMIN_EMAIL, ensurePlayerAuth } from '../../firebase';
 import s from '../../styles/shared.module.css';
 import styles from './LandingPage.module.css';
 
 type Tab = 'player' | 'login' | 'register';
+
+function getCallableErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
+
+function getCallableErrorCode(err: unknown) {
+  return typeof err === 'object' && err !== null && 'code' in err && typeof err.code === 'string'
+    ? err.code
+    : null;
+}
+
+function isDuplicatePlayerNameError(err: unknown) {
+  const code = getCallableErrorCode(err);
+  const message = getCallableErrorMessage(err, '').toLowerCase();
+  return code === 'functions/already-exists' || message.includes('already exists');
+}
+
+function formatJoinError(joinErr: unknown, reconnectErr: unknown) {
+  const joinMessage = getCallableErrorMessage(joinErr, 'Failed to join session.');
+  const reconnectMessage = getCallableErrorMessage(reconnectErr, 'Reconnect failed.');
+
+  if (isDuplicatePlayerNameError(joinErr)) {
+    return `That name is already in use in this session. If it is yours, check the spelling and try reconnecting from the same tab. ${reconnectMessage}`;
+  }
+  if (joinMessage.toLowerCase().includes('no session found')) {
+    return 'No session matches that code. Check the six-character code and try again.';
+  }
+  return joinMessage || reconnectMessage;
+}
 
 export function LandingPage() {
   const { user, isAdmin, isInstructor, signIn, register, signOut, instructorStatus } = useAuth();
@@ -18,25 +46,15 @@ export function LandingPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Player join
   const [sessionCode, setSessionCode] = useState('');
   const [playerName, setPlayerName] = useState('');
-
-  // Login
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-
-  // Register
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regName, setRegName] = useState('');
   const [regInstitution, setRegInstitution] = useState('');
 
-  const getErrorMessage = (err: unknown, fallback: string) => {
-    return err instanceof Error ? err.message : fallback;
-  };
-
-  // Redirect by rendering a route target instead of mutating navigation during render.
   if (session && sessionId) {
     return <Navigate to="/game" replace />;
   }
@@ -49,22 +67,31 @@ export function LandingPage() {
     setError('');
     setLoading(true);
     try {
+      await ensurePlayerAuth();
       const joinFn = httpsCallable<{ sessionCode: string; playerName: string }, { sessionId: string; playerId: string }>(functions, 'joinSession');
       const result = await joinFn({ sessionCode, playerName });
       setPlayerIdentity(result.data.sessionId, result.data.playerId);
       navigate('/game');
+      return;
     } catch (joinErr) {
-      // Try reconnect
+      if (!isDuplicatePlayerNameError(joinErr)) {
+        setError(getCallableErrorMessage(joinErr, 'Failed to join session.'));
+        return;
+      }
+
       try {
+        await ensurePlayerAuth();
         const reconnectFn = httpsCallable<{ sessionCode: string; playerName: string }, { sessionId: string; playerId: string }>(functions, 'reconnectPlayer');
         const result = await reconnectFn({ sessionCode, playerName });
         setPlayerIdentity(result.data.sessionId, result.data.playerId);
         navigate('/game');
+        return;
       } catch (reconnectErr) {
-        setError(getErrorMessage(reconnectErr, getErrorMessage(joinErr, 'Failed to join session')));
+        setError(formatJoinError(joinErr, reconnectErr));
       }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -82,14 +109,14 @@ export function LandingPage() {
 
       const signedInUser = auth.currentUser;
       if (signedInUser) {
-        const instructorDoc = await getDoc(doc(db, 'instructors', signedInUser.uid));
-        if (instructorDoc.exists() && instructorDoc.data().status === 'approved') {
+        const tokenResult = await signedInUser.getIdTokenResult(true);
+        if (tokenResult.claims.role === 'instructor') {
           navigate('/instructor');
           return;
         }
       }
     } catch (err) {
-      setError(getErrorMessage(err, 'Login failed'));
+      setError(getCallableErrorMessage(err, 'Login failed'));
     } finally {
       setLoading(false);
     }
@@ -106,9 +133,10 @@ export function LandingPage() {
     try {
       await register(regEmail, regPassword, regName, regInstitution);
     } catch (err) {
-      setError(getErrorMessage(err, 'Registration failed'));
+      setError(getCallableErrorMessage(err, 'Registration failed'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -122,22 +150,13 @@ export function LandingPage() {
 
       <div className={styles.formContainer}>
         <div className={styles.tabs}>
-          <button
-            className={`${styles.tab} ${tab === 'player' ? styles.tabActive : ''}`}
-            onClick={() => { setTab('player'); setError(''); }}
-          >
+          <button className={`${styles.tab} ${tab === 'player' ? styles.tabActive : ''}`} onClick={() => { setTab('player'); setError(''); }}>
             Join Game
           </button>
-          <button
-            className={`${styles.tab} ${tab === 'login' ? styles.tabActive : ''}`}
-            onClick={() => { setTab('login'); setError(''); }}
-          >
+          <button className={`${styles.tab} ${tab === 'login' ? styles.tabActive : ''}`} onClick={() => { setTab('login'); setError(''); }}>
             Instructor Login
           </button>
-          <button
-            className={`${styles.tab} ${tab === 'register' ? styles.tabActive : ''}`}
-            onClick={() => { setTab('register'); setError(''); }}
-          >
+          <button className={`${styles.tab} ${tab === 'register' ? styles.tabActive : ''}`} onClick={() => { setTab('register'); setError(''); }}>
             Register
           </button>
         </div>
@@ -150,7 +169,7 @@ export function LandingPage() {
                 <input
                   className={s.input}
                   value={sessionCode}
-                  onChange={e => setSessionCode(e.target.value.toUpperCase())}
+                  onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
                   placeholder="Enter 6-character code"
                   maxLength={6}
                   required
@@ -161,14 +180,17 @@ export function LandingPage() {
                 <input
                   className={s.input}
                   value={playerName}
-                  onChange={e => setPlayerName(e.target.value)}
+                  onChange={(e) => setPlayerName(e.target.value)}
                   placeholder="Enter your name"
                   required
                 />
               </div>
+              <p style={{ color: 'var(--text-light)', fontSize: 13, margin: '0 0 8px' }}>
+                Each browser tab keeps its own player sign-in, so you can test multiple students in parallel from one browser.
+              </p>
               {error && <p className={s.error}>{error}</p>}
               <button type="submit" className={s.btnPrimary} disabled={loading} style={{ width: '100%', marginTop: '8px' }}>
-                {loading ? 'Joining...' : 'Join Session'}
+                {loading ? 'Joining or reconnecting...' : 'Join Session'}
               </button>
             </form>
           )}
@@ -177,23 +199,11 @@ export function LandingPage() {
             <form onSubmit={handleLogin}>
               <div className={s.formGroup}>
                 <label className={s.label}>Email</label>
-                <input
-                  className={s.input}
-                  type="email"
-                  value={loginEmail}
-                  onChange={e => setLoginEmail(e.target.value)}
-                  required
-                />
+                <input className={s.input} type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
               </div>
               <div className={s.formGroup}>
                 <label className={s.label}>Password</label>
-                <input
-                  className={s.input}
-                  type="password"
-                  value={loginPassword}
-                  onChange={e => setLoginPassword(e.target.value)}
-                  required
-                />
+                <input className={s.input} type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
               </div>
               {error && <p className={s.error}>{error}</p>}
               <button type="submit" className={s.btnPrimary} disabled={loading} style={{ width: '100%', marginTop: '8px' }}>
@@ -211,43 +221,19 @@ export function LandingPage() {
             <form onSubmit={handleRegister}>
               <div className={s.formGroup}>
                 <label className={s.label}>Full Name</label>
-                <input
-                  className={s.input}
-                  value={regName}
-                  onChange={e => setRegName(e.target.value)}
-                  required
-                />
+                <input className={s.input} value={regName} onChange={(e) => setRegName(e.target.value)} required />
               </div>
               <div className={s.formGroup}>
                 <label className={s.label}>Institution</label>
-                <input
-                  className={s.input}
-                  value={regInstitution}
-                  onChange={e => setRegInstitution(e.target.value)}
-                  placeholder="University or Organization"
-                  required
-                />
+                <input className={s.input} value={regInstitution} onChange={(e) => setRegInstitution(e.target.value)} placeholder="University or Organization" required />
               </div>
               <div className={s.formGroup}>
                 <label className={s.label}>Email</label>
-                <input
-                  className={s.input}
-                  type="email"
-                  value={regEmail}
-                  onChange={e => setRegEmail(e.target.value)}
-                  required
-                />
+                <input className={s.input} type="email" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} required />
               </div>
               <div className={s.formGroup}>
                 <label className={s.label}>Password</label>
-                <input
-                  className={s.input}
-                  type="password"
-                  value={regPassword}
-                  onChange={e => setRegPassword(e.target.value)}
-                  minLength={6}
-                  required
-                />
+                <input className={s.input} type="password" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} minLength={6} required />
               </div>
               {error && <p className={s.error}>{error}</p>}
               <button type="submit" className={s.btnPrimary} disabled={loading} style={{ width: '100%', marginTop: '8px' }}>
@@ -261,14 +247,10 @@ export function LandingPage() {
         </div>
       </div>
 
-      {user && (
+      {user && !user.isAnonymous && (
         <div style={{ textAlign: 'center', marginTop: '16px' }}>
           {dashboardPath && (
-            <button
-              className={s.btnPrimary}
-              onClick={() => navigate(dashboardPath)}
-              style={{ fontSize: '13px', marginRight: '8px' }}
-            >
+            <button className={s.btnPrimary} onClick={() => navigate(dashboardPath)} style={{ fontSize: '13px', marginRight: '8px' }}>
               {dashboardLabel}
             </button>
           )}

@@ -1,62 +1,63 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import * as admin from 'firebase-admin';
 import {
   SUPPLIER_KEYS,
   SUPPLIER_COUNTRY,
   SUPPLIER_RELIABLE,
   SupplierState,
-  ActiveDisruption,
-  OrderMap,
-  SessionDoc,
-  PlayerStateDoc,
   Country,
   SupplierKey,
+  SessionDoc,
 } from './types';
 import { calculateUnitCost } from './gameLogic';
 import { getInitialSupplierMaxOrder } from './orderLimits';
+import { advanceResultsPhase, executeRoundProcessing } from './roundProcessing';
+import { finalizeSetupPhase } from './setup';
+import {
+  sessionInstructorStateRef,
+  sessionPlayerRef,
+  sessionPlayersRef,
+  sessionPublicStateRef,
+  sessionRef,
+} from './sessionState';
 
-const db = admin.firestore();
 
 export const forceAdvance = onCall(async (request) => {
-  const { sessionId } = request.data;
+  const { sessionId } = request.data as { sessionId?: string };
   const uid = request.auth?.uid;
 
   if (!uid) {
     throw new HttpsError('unauthenticated', 'Must be logged in');
   }
+  if (!sessionId) {
+    throw new HttpsError('invalid-argument', 'Session ID is required');
+  }
 
-  const sessionRef = db.collection('sessions').doc(sessionId);
-  const sessionSnap = await sessionRef.get();
-
+  const sessionSnap = await sessionRef(sessionId).get();
   if (!sessionSnap.exists) {
     throw new HttpsError('not-found', 'Session not found');
   }
 
-  const session = sessionSnap.data()!;
-
+  const session = { id: sessionSnap.id, ...sessionSnap.data() } as SessionDoc;
   if (session.instructorUid !== uid) {
     throw new HttpsError('permission-denied', 'Only the instructor can force advance');
   }
 
+  const instructorStateSnap = await sessionInstructorStateRef(sessionId).get();
+  const submittedPlayerIds = (instructorStateSnap.data()?.submittedPlayerIds || []) as string[];
+  const submittedSet = new Set(submittedPlayerIds);
+  const playersSnap = await sessionPlayersRef(sessionId).orderBy('joinedAt', 'asc').get();
+  const allPlayerDocs = playersSnap.docs.map((doc) => doc.data());
+  const allPlayerIds = allPlayerDocs.map((doc) => doc.playerId as string);
+  const unsubmittedPlayerDocs = allPlayerDocs.filter((doc) => !submittedSet.has(doc.playerId));
+
   if (session.status === 'setup') {
-    // Force-submit default setup for unsubmitted players
-    const submitted = new Set(session.submittedPlayers || []);
-    const allPlayerIds = Object.keys(session.players);
-    const unsubmitted = allPlayerIds.filter(id => !submitted.has(id));
-
-    for (const playerId of unsubmitted) {
-      // Create a default even distribution
-      const perSupplier = Math.floor(session.params.startingDemand / 6);
-      const remainder = session.params.startingDemand - (perSupplier * 6);
-
+    for (const player of unsubmittedPlayerDocs) {
+      const perSupplier = Math.floor(session.params.startingDemand / SUPPLIER_KEYS.length);
+      const remainder = session.params.startingDemand - (perSupplier * SUPPLIER_KEYS.length);
       const allocations = {} as Record<SupplierKey, number>;
-      SUPPLIER_KEYS.forEach((key, i) => {
-        allocations[key] = perSupplier + (i < remainder ? 1 : 0);
+      SUPPLIER_KEYS.forEach((key, index) => {
+        allocations[key] = perSupplier + (index < remainder ? 1 : 0);
       });
-
-      // Call submitInitialSetup logic inline (simplified)
-      const playerStateRef = db.collection('sessions').doc(sessionId)
-        .collection('playerStates').doc(playerId);
 
       const transit: Record<Country, number[]> = {
         china: new Array(session.params.transitTurns.china).fill(0),
@@ -75,12 +76,12 @@ export const forceAdvance = onCall(async (request) => {
 
         suppliers[key] = {
           lastOrder: amount,
-          maxOrder: getInitialSupplierMaxOrder(amount),
+          maxOrder: getInitialSupplierMaxOrder(amount, session.params),
           totalOrdered: amount * transitTurns,
           active: amount > 0,
         };
 
-        for (let i = 0; i < transitTurns; i++) {
+        for (let i = 0; i < transitTurns; i += 1) {
           transit[country][i] += amount;
         }
 
@@ -96,134 +97,86 @@ export const forceAdvance = onCall(async (request) => {
         }
       }
 
-      await playerStateRef.set({
-        playerId,
+      const cashRemaining = session.params.startingCash - totalCost;
+      await sessionRef(sessionId).collection('playerStates').doc(player.playerId).set({
+        playerId: player.playerId,
         sessionId,
-        playerName: session.players[playerId].name,
-        cash: session.params.startingCash - totalCost,
+        playerName: player.playerName,
+        cash: cashRemaining,
         inventory: 0,
         marketDemand: session.params.startingDemand,
         suppliers,
         transit,
         roundHistory: [],
       });
+      await sessionPlayerRef(sessionId, player.playerId).set({
+        currentCash: cashRemaining,
+        currentInventory: 0,
+        currentDemand: session.params.startingDemand,
+      }, { merge: true });
     }
 
-    // Transition to active
-    const activeDisruptions: Record<string, ActiveDisruption | null> = { china: null, mexico: null, us: null };
-    for (const country of ['china', 'mexico', 'us'] as const) {
-      if (session.disruptionSchedule[country]?.includes(1)) {
-        activeDisruptions[country] = {
-          startRound: 1,
-          endsAfterRound: 1 + session.params.disruptionDuration - 1,
-        };
-      }
-    }
-
-    await sessionRef.update({
-      status: 'active',
-      currentRound: 1,
-      currentPhase: 'ordering',
-      submittedPlayers: [],
-      activeDisruptions,
+    await sessionRef(sessionId).update({
+      submittedCount: allPlayerIds.length,
+      currentPhase: 'processing',
     });
+    await sessionPublicStateRef(sessionId).set({
+      sessionId,
+      submittedCount: allPlayerIds.length,
+      currentPhase: 'processing',
+    }, { merge: true });
+    await sessionInstructorStateRef(sessionId).set({
+      sessionId,
+      submittedPlayerIds: allPlayerIds,
+      updatedAt: Date.now(),
+    }, { merge: true });
 
+    await finalizeSetupPhase(sessionId);
     return { success: true, action: 'setup_forced' };
   }
 
   if (session.status === 'active' && session.currentPhase === 'ordering') {
-    // Submit zero orders for unsubmitted players
-    const submitted = new Set(session.submittedPlayers || []);
-    const allPlayerIds = Object.keys(session.players);
-    const unsubmitted = allPlayerIds.filter(id => !submitted.has(id));
-
-    for (const playerId of unsubmitted) {
+    for (const player of unsubmittedPlayerDocs) {
       const zeroOrders: Record<string, number> = {};
-      SUPPLIER_KEYS.forEach(key => { zeroOrders[key] = 0; });
-
-      const orderRef = db.collection('sessions').doc(sessionId)
+      SUPPLIER_KEYS.forEach((key) => { zeroOrders[key] = 0; });
+      await sessionRef(sessionId)
         .collection('rounds').doc(String(session.currentRound))
-        .collection('orders').doc(playerId);
-
-      await orderRef.set({ orders: zeroOrders, submittedAt: Date.now(), forced: true });
+        .collection('orders').doc(player.playerId)
+        .set({ orders: zeroOrders, submittedAt: Date.now(), forced: true });
+      await sessionRef(sessionId).collection('playerStates').doc(player.playerId).set({
+        lastSubmittedRound: session.currentRound,
+      }, { merge: true });
     }
 
-    // Mark all as submitted and trigger processing
-    await sessionRef.update({
-      submittedPlayers: allPlayerIds,
+    await sessionRef(sessionId).update({
+      submittedCount: allPlayerIds.length,
       currentPhase: 'processing',
     });
+    await sessionPublicStateRef(sessionId).set({
+      sessionId,
+      submittedCount: allPlayerIds.length,
+      currentPhase: 'processing',
+    }, { merge: true });
+    await sessionInstructorStateRef(sessionId).set({
+      sessionId,
+      submittedPlayerIds: allPlayerIds,
+      updatedAt: Date.now(),
+    }, { merge: true });
 
-    // Import and call processing
-    const { processRound } = await import('./gameLogic');
-    const playerStatesSnap = await db.collection('sessions').doc(sessionId)
-      .collection('playerStates').get();
-
-    const ordersSnap = await db.collection('sessions').doc(sessionId)
-      .collection('rounds').doc(String(session.currentRound))
-      .collection('orders').get();
-
-    const ordersMap: Record<string, OrderMap> = {};
-    ordersSnap.forEach(doc => { ordersMap[doc.id] = doc.data().orders; });
-
-    const playerRoundData = playerStatesSnap.docs.map(doc => ({
-      playerId: doc.id,
-      orders: ordersMap[doc.id] || {},
-      state: doc.data() as PlayerStateDoc,
-    }));
-
-    const result = processRound(
-      session.currentRound,
-      playerRoundData,
-      session.params,
-      session.disruptionSchedule,
-      session.activeDisruptions,
-    );
-
-    const batch = db.batch();
-
-    for (const [pid, state] of Object.entries(result.updatedStates)) {
-      batch.update(
-        db.collection('sessions').doc(sessionId).collection('playerStates').doc(pid),
-        state,
-      );
-    }
-
-    const nextRound = session.currentRound + 1;
-    const nextDisruptions = { ...result.newActiveDisruptions };
-    if (!result.gameCompleted) {
-      for (const country of ['china', 'mexico', 'us'] as const) {
-        if (nextDisruptions[country] && nextRound > nextDisruptions[country]!.endsAfterRound) {
-          nextDisruptions[country] = null;
-        }
-        if (session.disruptionSchedule[country]?.includes(nextRound)) {
-          nextDisruptions[country] = {
-            startRound: nextRound,
-            endsAfterRound: nextRound + session.params.disruptionDuration - 1,
-          };
-        }
-      }
-    }
-
-    const update: Partial<SessionDoc> = {
-      activeDisruptions: nextDisruptions,
-      totalMarketDemand: result.newTotalMarketDemand,
-    };
-
-    if (result.gameCompleted) {
-      update.status = 'completed';
-      update.currentPhase = 'results';
-    } else {
-      update.currentRound = nextRound;
-      update.currentPhase = 'ordering';
-      update.submittedPlayers = [];
-    }
-
-    batch.update(sessionRef, update);
-    await batch.commit();
-
+    await executeRoundProcessing(sessionId);
     return { success: true, action: 'round_forced' };
+  }
+
+  if (session.status === 'active' && session.currentPhase === 'results') {
+    const advanced = await advanceResultsPhase(sessionId);
+    if (!advanced) {
+      throw new HttpsError('failed-precondition', 'Round results are no longer waiting for confirmation');
+    }
+
+    return { success: true, action: 'results_forced' };
   }
 
   throw new HttpsError('failed-precondition', 'Cannot force advance in current state');
 });
+
+

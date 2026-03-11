@@ -2,53 +2,86 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Instructors collection
-    match /instructors/{uid} {
-      // Anyone authenticated can create their own instructor doc
-      allow create: if request.auth != null && request.auth.uid == uid;
-      // Instructors can read their own doc
-      allow read: if request.auth != null && (
-        request.auth.uid == uid ||
-        request.auth.token.email == resource.data.email ||
-        isAdmin()
-      );
-      // Only admin can update (approve/deny/revoke)
-      allow update: if isAdmin();
-    }
-
-    // Sessions collection
-    match /sessions/{sessionId} {
-      // Instructors can create sessions
-      allow create: if request.auth != null && request.auth.token.role == 'instructor';
-      // Anyone can read sessions (players need to see game state)
-      allow read: if true;
-      // Instructor who owns the session or admin can update
-      allow update: if request.auth != null && (
-        request.auth.uid == resource.data.instructorUid ||
-        isAdmin()
-      );
-
-      // Player states subcollection
-      match /playerStates/{playerId} {
-        allow read: if true;
-        // Only Cloud Functions write player states
-        allow write: if false;
-      }
-
-      // Round orders subcollection
-      match /rounds/{roundNumber}/orders/{playerId} {
-        allow read: if true;
-        allow write: if false;
-      }
-    }
-
     function isAdmin() {
       return request.auth != null && (
         request.auth.token.role == 'admin' ||
         request.auth.token.admin == true ||
         request.auth.token.email == 'ADMIN_EMAIL_PLACEHOLDER'
       );
+    }
+
+    function canManageSession(sessionId) {
+      return request.auth != null && (
+        isAdmin() ||
+        get(/databases/$(database)/documents/sessions/$(sessionId)).data.instructorUid == request.auth.uid
+      );
+    }
+
+    function isSessionMember(sessionId) {
+      return request.auth != null && exists(/databases/$(database)/documents/sessions/$(sessionId)/members/$(request.auth.uid));
+    }
+
+    function ownsPlayer(sessionId, playerId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/sessions/$(sessionId)/members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/sessions/$(sessionId)/members/$(request.auth.uid)).data.playerId == playerId;
+    }
+
+    function isSessionCompleted(sessionId) {
+      return get(/databases/$(database)/documents/sessions/$(sessionId)).data.status == 'completed';
+    }
+
+    match /instructors/{uid} {
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && (
+        request.auth.uid == uid ||
+        request.auth.token.email == resource.data.email ||
+        isAdmin()
+      );
+      allow update: if isAdmin();
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if request.auth != null && (
+        isAdmin() ||
+        resource.data.instructorUid == request.auth.uid ||
+        isSessionMember(sessionId)
+      );
+      allow create, update, delete: if false;
+
+      match /state/{stateId} {
+        allow read: if (
+          stateId == 'public' && (canManageSession(sessionId) || isSessionMember(sessionId))
+        ) || (
+          stateId == 'instructor' && canManageSession(sessionId)
+        );
+        allow write: if false;
+      }
+
+      match /players/{playerId} {
+        allow read: if canManageSession(sessionId) || ownsPlayer(sessionId, playerId);
+        allow write: if false;
+      }
+
+      match /playerNames/{nameKey} {
+        allow read: if canManageSession(sessionId);
+        allow write: if false;
+      }
+
+      match /members/{uid} {
+        allow read: if canManageSession(sessionId) || (request.auth != null && request.auth.uid == uid);
+        allow write: if false;
+      }
+
+      match /playerStates/{playerId} {
+        allow read: if canManageSession(sessionId) || ownsPlayer(sessionId, playerId) || (isSessionMember(sessionId) && isSessionCompleted(sessionId));
+        allow write: if false;
+      }
+
+      match /rounds/{roundNumber}/orders/{playerId} {
+        allow read: if canManageSession(sessionId);
+        allow write: if false;
+      }
     }
   }
 }

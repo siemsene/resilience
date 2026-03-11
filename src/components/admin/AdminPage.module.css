@@ -57,3 +57,12 @@
   display: flex;
   gap: var(--space-sm);
 }
+
+.sectionHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+

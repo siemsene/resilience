@@ -1,9 +1,14 @@
 import {
   SUPPLIER_KEYS, SUPPLIER_COUNTRY, SUPPLIER_RELIABLE,
   SupplierKey, Country, OrderMap, SessionParams, ActiveDisruption,
-  DisruptionSchedule, RoundHistoryEntry, PlayerStateDoc,
+  DisruptionSchedule, RoundHistoryEntry, PlayerStateDoc, SupplierCapacityMap,
 } from './types';
 import { getCurrentSupplierMaxOrder, getNextSupplierMaxOrder } from './orderLimits';
+import {
+  buildNextSupplierCapacities,
+  getSubmittedOrderTotals,
+  resolveSupplierCapacitiesForRound,
+} from './supplierCapacity';
 
 export function calculateUnitCost(
   baseCost: number,
@@ -17,7 +22,6 @@ export function calculateUnitCost(
     cost *= unreliableCostModifier;
   }
 
-  // Apply volume discount (highest qualifying tier)
   let discount = 0;
   const sorted = [...volumeDiscountThresholds].sort((a, b) => b.threshold - a.threshold);
   for (const tier of sorted) {
@@ -45,31 +49,101 @@ interface PlayerRoundData {
   };
 }
 
+interface AllocationRequest {
+  playerId: string;
+  amount: number;
+}
+
+function createOrderTotals(): Record<SupplierKey, number> {
+  return SUPPLIER_KEYS.reduce((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {} as Record<SupplierKey, number>);
+}
+
+function createBooleanMap(): Record<SupplierKey, boolean> {
+  return SUPPLIER_KEYS.reduce((acc, key) => {
+    acc[key] = false;
+    return acc;
+  }, {} as Record<SupplierKey, boolean>);
+}
+
+function allocateProportionally(requests: AllocationRequest[], capacity: number): Record<string, number> {
+  const allocations: Record<string, number> = {};
+  const totalRequested = requests.reduce((sum, request) => sum + request.amount, 0);
+
+  if (capacity <= 0 || totalRequested <= 0) {
+    return allocations;
+  }
+
+  if (totalRequested <= capacity) {
+    for (const request of requests) {
+      allocations[request.playerId] = request.amount;
+    }
+    return allocations;
+  }
+
+  const ranked = requests.map((request) => {
+    const exactShare = (request.amount * capacity) / totalRequested;
+    const baseAllocation = Math.floor(exactShare);
+    return {
+      ...request,
+      baseAllocation,
+      remainder: exactShare - baseAllocation,
+    };
+  });
+
+  let allocatedSoFar = 0;
+  for (const entry of ranked) {
+    allocations[entry.playerId] = entry.baseAllocation;
+    allocatedSoFar += entry.baseAllocation;
+  }
+
+  let remaining = capacity - allocatedSoFar;
+  ranked.sort((a, b) => {
+    if (b.remainder !== a.remainder) {
+      return b.remainder - a.remainder;
+    }
+    return a.playerId.localeCompare(b.playerId);
+  });
+
+  for (const entry of ranked) {
+    if (remaining <= 0) {
+      break;
+    }
+    if ((allocations[entry.playerId] || 0) >= entry.amount) {
+      continue;
+    }
+    allocations[entry.playerId] = (allocations[entry.playerId] || 0) + 1;
+    remaining -= 1;
+  }
+
+  return allocations;
+}
+
 export function processRound(
   round: number,
   players: PlayerRoundData[],
   params: SessionParams,
   disruptionSchedule: DisruptionSchedule,
   currentActiveDisruptions: Record<Country, ActiveDisruption | null>,
+  currentSupplierCapacities?: SupplierCapacityMap,
 ): {
   updatedStates: Record<string, Partial<PlayerStateDoc>>;
   newActiveDisruptions: Record<Country, ActiveDisruption | null>;
   newTotalMarketDemand: number;
   gameCompleted: boolean;
+  newSupplierCapacities: SupplierCapacityMap;
 } {
-  // --- Phase 1: Movement ---
-  // Shift transit arrays toward US; last box arrives into inventory
   for (const p of players) {
     let arrivals = 0;
     for (const country of ['china', 'mexico', 'us'] as const) {
       const transit = [...(p.state.transit[country] || [])];
 
-      // Last box arrives
       if (transit.length > 0) {
         arrivals += transit[transit.length - 1];
       }
 
-      // Shift: remove last, insert 0 at front
       if (transit.length > 0) {
         transit.pop();
         transit.unshift(0);
@@ -81,16 +155,13 @@ export function processRound(
     p.state.inventory += arrivals;
   }
 
-  // --- Phase 2: Disruptions ---
   const newActiveDisruptions: Record<Country, ActiveDisruption | null> = { ...currentActiveDisruptions };
 
   for (const country of ['china', 'mexico', 'us'] as const) {
-    // Clear expired disruptions
     if (newActiveDisruptions[country] && round > newActiveDisruptions[country]!.endsAfterRound) {
       newActiveDisruptions[country] = null;
     }
 
-    // Start new disruptions
     if (disruptionSchedule[country]?.includes(round)) {
       newActiveDisruptions[country] = {
         startRound: round,
@@ -99,43 +170,80 @@ export function processRound(
     }
   }
 
-  // --- Phase 3: Allocation ---
   const allocated: Record<string, Record<SupplierKey, number>> = {};
   const cancelled: Record<string, Record<SupplierKey, boolean>> = {};
+  const capacityLimited: Record<string, Record<SupplierKey, boolean>> = {};
+  const submittedOrderTotals = getSubmittedOrderTotals(players.map((player) => player.orders));
+  const currentCapacities = resolveSupplierCapacitiesForRound(
+    currentSupplierCapacities,
+    submittedOrderTotals,
+    players.length,
+    params,
+    round,
+  );
+  const survivingOrderTotals = createOrderTotals();
+  const preservePriorCapacity = createBooleanMap();
+  const supplierHadCancellation = createBooleanMap();
 
   for (const p of players) {
     allocated[p.playerId] = {} as Record<SupplierKey, number>;
     cancelled[p.playerId] = {} as Record<SupplierKey, boolean>;
+    capacityLimited[p.playerId] = {} as Record<SupplierKey, boolean>;
 
     for (const key of SUPPLIER_KEYS) {
-      const country = SUPPLIER_COUNTRY[key];
-      const isReliable = SUPPLIER_RELIABLE[key];
-      const myOrder = p.orders[key] || 0;
+      allocated[p.playerId][key] = 0;
+      cancelled[p.playerId][key] = false;
+      capacityLimited[p.playerId][key] = false;
+    }
+  }
 
-      // Check disruption — orders to disrupted countries are blocked
-      if (newActiveDisruptions[country]) {
-        allocated[p.playerId][key] = 0;
+  for (const key of SUPPLIER_KEYS) {
+    const country = SUPPLIER_COUNTRY[key];
+    const isReliable = SUPPLIER_RELIABLE[key];
+    const disrupted = Boolean(newActiveDisruptions[country]);
+    const requests: AllocationRequest[] = [];
+    let cancelledUnits = 0;
+
+    for (const p of players) {
+      const myOrder = p.orders[key] || 0;
+      if (myOrder <= 0) {
+        continue;
+      }
+
+      if (disrupted) {
         cancelled[p.playerId][key] = true;
         continue;
       }
 
-      let alloc = myOrder;
-
-      // Unreliable supplier cancellation roll
-      let wasCancelled = false;
-      if (!isReliable && alloc > 0) {
-        if (Math.random() < params.unreliableCancellationChance) {
-          alloc = 0;
-          wasCancelled = true;
-        }
+      if (!isReliable && Math.random() < params.unreliableCancellationChance) {
+        cancelled[p.playerId][key] = true;
+        supplierHadCancellation[key] = true;
+        cancelledUnits += myOrder;
+        continue;
       }
 
-      allocated[p.playerId][key] = alloc;
-      cancelled[p.playerId][key] = wasCancelled;
+      requests.push({ playerId: p.playerId, amount: myOrder });
+      survivingOrderTotals[key] += myOrder;
     }
+
+    // Unreliable cancellations consume this round's supplier output instead of freeing it up.
+    const allocableCapacity = Math.max(0, currentCapacities[key].actualCapacity - cancelledUnits);
+    const allocationsForSupplier = allocateProportionally(requests, allocableCapacity);
+    for (const request of requests) {
+      const allocation = allocationsForSupplier[request.playerId] || 0;
+      allocated[request.playerId][key] = allocation;
+      capacityLimited[request.playerId][key] = allocation < request.amount;
+    }
+
+    preservePriorCapacity[key] =
+      disrupted ||
+      (
+        submittedOrderTotals[key] > 0 &&
+        survivingOrderTotals[key] === 0 &&
+        supplierHadCancellation[key]
+      );
   }
 
-  // --- Phase 4: Order costs ---
   for (const p of players) {
     let orderCosts = 0;
 
@@ -144,6 +252,7 @@ export function processRound(
       if (alloc > 0) {
         const country = SUPPLIER_COUNTRY[key];
         const isUnreliable = !SUPPLIER_RELIABLE[key];
+        // Players are charged only for units that actually ship this round.
         const unitCost = calculateUnitCost(
           params.baseCost[country],
           isUnreliable,
@@ -159,33 +268,27 @@ export function processRound(
     p.state.cash -= orderCosts;
   }
 
-  // --- Phase 5: Place shipments ---
   for (const p of players) {
     for (const key of SUPPLIER_KEYS) {
       const alloc = allocated[p.playerId][key];
       const country = SUPPLIER_COUNTRY[key];
 
       if (alloc > 0) {
-        // Place at position 0 (start of transit)
         p.state.transit[country][0] += alloc;
       }
 
-      // Update supplier state
       const placedOrder = p.orders[key] || 0;
       const previousSupplierState = p.state.suppliers[key];
-      const previousMaxOrder = getCurrentSupplierMaxOrder(previousSupplierState);
       const blockedByDisruption = Boolean(newActiveDisruptions[country]);
       p.state.suppliers[key] = {
         lastOrder: placedOrder,
-        maxOrder: getNextSupplierMaxOrder(previousMaxOrder, placedOrder, blockedByDisruption),
+        maxOrder: getNextSupplierMaxOrder(previousSupplierState, placedOrder, params, blockedByDisruption),
         totalOrdered: (previousSupplierState?.totalOrdered || 0) + alloc,
         active: (previousSupplierState?.active || false) || alloc > 0,
       };
     }
   }
 
-  // --- Phase 6: Demand ---
-  // Each player fulfills their own marketDemand from inventory
   let totalUnmetPool = 0;
   const playerDemandResults: Record<string, { sold: number; unmet: number; extraGained: number }> = {};
 
@@ -199,7 +302,6 @@ export function processRound(
     totalUnmetPool += unmet;
   }
 
-  // Redistribute unmet demand uniformly to players with remaining inventory
   if (totalUnmetPool > 0) {
     let remaining = totalUnmetPool;
     let iterations = 0;
@@ -209,7 +311,6 @@ export function processRound(
 
       const perPlayer = Math.floor(remaining / withInventory.length);
       if (perPlayer === 0 && remaining > 0) {
-        // Distribute remainder 1 by 1
         for (const p of withInventory) {
           if (remaining <= 0) break;
           const canFulfill = Math.min(1, p.state.inventory);
@@ -234,7 +335,6 @@ export function processRound(
     }
   }
 
-  // Apply loyalty adjustments, end-of-turn holding costs, and revenue
   let newTotalDemand = 0;
   for (const p of players) {
     const results = playerDemandResults[p.playerId];
@@ -242,7 +342,6 @@ export function processRound(
     const revenue = results.sold * params.sellingPrice;
     p.state.cash += revenue - holdingCosts;
 
-    // Loyalty: adjust marketDemand
     if (results.extraGained > 0) {
       p.state.marketDemand += Math.floor(results.extraGained * (1 - params.loyaltyPercent));
     }
@@ -261,9 +360,17 @@ export function processRound(
     newTotalDemand += p.state.marketDemand;
   }
 
-  // --- Build updated states ---
   const updatedStates: Record<string, Partial<PlayerStateDoc>> = {};
   const gameCompleted = round >= params.totalRounds;
+  const nextCapacityRound = gameCompleted ? round : round + 1;
+  const newSupplierCapacities = buildNextSupplierCapacities(
+    currentCapacities,
+    submittedOrderTotals,
+    preservePriorCapacity,
+    players.length,
+    params,
+    nextCapacityRound,
+  );
 
   for (const p of players) {
     const profit = (p.state._revenue || 0) - (p.state._orderCosts || 0) - (p.state._holdingCosts || 0);
@@ -273,6 +380,7 @@ export function processRound(
       orders: { ...p.orders },
       allocated: { ...allocated[p.playerId] },
       cancelled: { ...cancelled[p.playerId] },
+      capacityLimited: { ...capacityLimited[p.playerId] },
       arrivals: p.state._arrivals || 0,
       demand: p.state._demand || p.state.marketDemand,
       sold: p.state._sold || 0,
@@ -298,7 +406,6 @@ export function processRound(
       roundHistory,
     };
 
-    // Clean up temp fields
     delete p.state._arrivals;
     delete p.state._orderCosts;
     delete p.state._holdingCosts;
@@ -314,5 +421,6 @@ export function processRound(
     newActiveDisruptions,
     newTotalMarketDemand: newTotalDemand,
     gameCompleted,
+    newSupplierCapacities,
   };
 }

@@ -5,11 +5,12 @@ import styles from './PlayerLobby.module.css';
 interface Props {
   session: SessionDoc;
   playerId: string;
+  playerName: string | null;
   onLeave: () => void;
 }
 
-export function PlayerLobby({ session, playerId, onLeave }: Props) {
-  const players = Object.entries(session.players || {});
+export function PlayerLobby({ session, playerId, playerName, onLeave }: Props) {
+  const displayName = playerName?.trim() || playerId.slice(0, 6);
 
   return (
     <div className={styles.lobby}>
@@ -23,20 +24,17 @@ export function PlayerLobby({ session, playerId, onLeave }: Props) {
         </div>
 
         <div className={styles.playerSection}>
-          <h3 className={styles.playerHeader}>
-            Players ({players.length})
-          </h3>
+          <h3 className={styles.playerHeader}>Players Connected</h3>
           <div className={styles.playerList}>
-            {players.map(([pid, pinfo]) => (
-              <div
-                key={pid}
-                className={`${styles.playerItem} ${pid === playerId ? styles.playerItemSelf : ''}`}
-              >
-                <span className={styles.dot} />
-                <span>{pinfo.name}</span>
-                {pid === playerId && <span className={styles.youBadge}>You</span>}
-              </div>
-            ))}
+            <div className={`${styles.playerItem} ${styles.playerItemSelf}`}>
+              <span className={styles.dot} />
+              <span>This tab is connected as player <code>{displayName}</code></span>
+              <span className={styles.youBadge}>You</span>
+            </div>
+            <div className={styles.playerItem}>
+              <span className={styles.dot} />
+              <span>{session.playerCount} player{session.playerCount === 1 ? '' : 's'} currently joined</span>
+            </div>
           </div>
         </div>
 

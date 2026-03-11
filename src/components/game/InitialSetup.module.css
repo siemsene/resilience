@@ -171,3 +171,12 @@
   color: var(--text-secondary);
   font-size: 12px;
 }
+
+.supplierMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-light);
+}

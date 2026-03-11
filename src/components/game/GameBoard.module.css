@@ -91,9 +91,40 @@
 .disruptedOverlay {
   position: absolute;
   inset: 0;
-  background: rgba(192, 57, 43, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: linear-gradient(180deg, rgba(130, 28, 19, 0.26), rgba(130, 28, 19, 0.42));
+  backdrop-filter: blur(2px);
   pointer-events: none;
-  z-index: 1;
+  z-index: 4;
+  text-align: center;
+  padding: 14px;
+}
+
+.disruptedLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 112px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 245, 243, 0.95);
+  color: #8b1e14;
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  box-shadow: 0 10px 20px rgba(61, 12, 8, 0.18);
+}
+
+.disruptedSubtext {
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(42, 12, 10, 0.65);
 }
 
 @keyframes pulse {
@@ -152,9 +183,8 @@
 }
 
 .orderInput {
-  width: min(100%, 126px);
-  display: block;
-  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
   padding: 4px 6px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
@@ -172,6 +202,39 @@
 .orderInput:disabled {
   background: #f0ebe0;
   color: var(--text-light);
+}
+
+.orderEntryRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(100%, 156px);
+  margin: 0 auto;
+}
+
+.maxOrderBtn {
+  flex: 0 0 auto;
+  min-width: 40px;
+  padding: 4px 7px;
+  border: 1px solid rgba(61, 75, 61, 0.22);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, rgba(255, 250, 240, 0.96), rgba(235, 224, 199, 0.96));
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.maxOrderBtn:hover:not(:disabled) {
+  border-color: rgba(61, 75, 61, 0.4);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(228, 214, 182, 0.98));
+}
+
+.maxOrderBtn:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 .lastOrder {
@@ -403,32 +466,132 @@
 
 .pipelineSummaryGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
   margin-top: 8px;
 }
 
 .pipelineSummaryItem {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 8px 10px;
+  gap: 2px;
+  padding: 6px 4px;
   border-radius: 10px;
   background: rgba(255, 251, 240, 0.86);
   border: 1px solid rgba(111, 78, 55, 0.18);
+  text-align: center;
 }
 
 .pipelineSummaryLabel {
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: 8px;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--text-light);
+  line-height: 1.2;
 }
 
 .pipelineSummaryValue {
-  font-size: 20px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.pipelineRequestGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.pipelineRequestItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 42px;
+  padding: 5px 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(111, 78, 55, 0.14);
+  text-align: center;
+}
+
+.pipelineRequestUs {
+  background: rgba(214, 233, 255, 0.96);
+  border-color: rgba(74, 122, 191, 0.32);
+}
+
+.pipelineRequestMexico {
+  background: rgba(219, 245, 219, 0.96);
+  border-color: rgba(77, 137, 77, 0.28);
+}
+
+.pipelineRequestEmpty {
+  background: rgba(255, 255, 255, 0.14);
+  border-style: dashed;
+  border-color: rgba(111, 78, 55, 0.1);
+}
+
+.pipelineRequestLabel {
+  font-size: 8px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-light);
+  line-height: 1.15;
+}
+
+.pipelineRequestValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.pipelineBalanceGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.pipelineBalanceItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 42px;
+  padding: 5px 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(111, 78, 55, 0.14);
+  text-align: center;
+}
+
+.pipelineBalanceSurplus {
+  background: rgba(221, 243, 226, 0.96);
+  border-color: rgba(96, 160, 109, 0.32);
+}
+
+.pipelineBalanceShortfall {
+  background: rgba(249, 225, 221, 0.96);
+  border-color: rgba(197, 102, 88, 0.32);
+}
+
+.pipelineBalanceNeutral {
+  background: rgba(255, 251, 240, 0.9);
+  border-color: rgba(111, 78, 55, 0.16);
+}
+
+.pipelineBalanceLabel {
+  font-size: 8px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-light);
+  line-height: 1.15;
+}
+
+.pipelineBalanceValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.1;
 }
 
 .infoCompact {
@@ -576,12 +739,8 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .pipelineSummaryGrid {
-    grid-template-columns: 1fr;
-  }
-
   .pipelineSummaryValue {
-    font-size: 18px;
+    font-size: 13px;
   }
 
   .centerPlanBox {

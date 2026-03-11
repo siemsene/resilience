@@ -45,7 +45,6 @@ export const SUPPLIER_LABELS: Record<SupplierKey, string> = {
   usUnreliable: 'US Unreliable',
 };
 
-// ---- Instructor Status ----
 export type InstructorStatus = 'pending' | 'approved' | 'denied' | 'revoked';
 
 export interface InstructorRecord {
@@ -58,7 +57,6 @@ export interface InstructorRecord {
   reviewedAt?: number;
 }
 
-// ---- Session ----
 export type SessionStatus = 'lobby' | 'setup' | 'active' | 'completed' | 'expired';
 export type GamePhase = 'ordering' | 'processing' | 'results';
 
@@ -80,6 +78,10 @@ export interface SessionParams {
   maxNewSupplierOrder: number;
   maxOrderIncreasePercent: number;
   minimumOrder: number;
+  supplierCapacityTargetMultiplier: number;
+  supplierCapacityPriorWeight: number;
+  supplierCapacityTargetWeight: number;
+  supplierCapacityMinPerPlayer: number;
 }
 
 export const DEFAULT_PARAMS: SessionParams = {
@@ -101,8 +103,12 @@ export const DEFAULT_PARAMS: SessionParams = {
   disruptionDuration: 3,
   disruptionsPerCountry: { china: 2, mexico: 1, us: 0 },
   maxNewSupplierOrder: 150,
-  maxOrderIncreasePercent: 1.5,
+  maxOrderIncreasePercent: 1.4,
   minimumOrder: 100,
+  supplierCapacityTargetMultiplier: 1.4,
+  supplierCapacityPriorWeight: 0.8,
+  supplierCapacityTargetWeight: 0.2,
+  supplierCapacityMinPerPlayer: 100,
 };
 
 export interface DisruptionSchedule {
@@ -116,11 +122,14 @@ export interface ActiveDisruption {
   endsAfterRound: number;
 }
 
-export interface PlayerInfo {
-  name: string;
-  joinedAt: number;
-  connected: boolean;
+export interface SupplierCapacityState {
+  actualCapacity: number;
+  targetCapacity: number;
+  lastRoundOrders: number;
+  capacityRound: number;
 }
+
+export type SupplierCapacityMap = Record<SupplierKey, SupplierCapacityState>;
 
 export interface SessionDoc {
   id: string;
@@ -133,14 +142,50 @@ export interface SessionDoc {
   params: SessionParams;
   disruptionSchedule: DisruptionSchedule;
   activeDisruptions: Record<Country, ActiveDisruption | null>;
-  players: Record<string, PlayerInfo>;
   currentRound: number;
   currentPhase: GamePhase;
-  submittedPlayers: string[];
+  playerCount: number;
+  submittedCount: number;
   totalMarketDemand: number;
+  resultsRound?: number;
+  resultsConfirmedCount?: number;
 }
 
-// ---- Player State ----
+export interface SessionPublicState {
+  sessionId: string;
+  status: SessionStatus;
+  currentRound: number;
+  currentPhase: GamePhase;
+  activeDisruptions: Record<Country, ActiveDisruption | null>;
+  submittedCount: number;
+  playerCount: number;
+  totalMarketDemand: number;
+  resultsRound?: number;
+  resultsConfirmedCount?: number;
+}
+
+export interface SessionInstructorState {
+  sessionId: string;
+  submittedPlayerIds: string[];
+  supplierCapacities?: SupplierCapacityMap;
+  resultsRound?: number;
+  resultsConfirmedPlayerIds?: string[];
+  updatedAt: number;
+}
+
+export interface SessionPlayerDoc {
+  playerId: string;
+  sessionId: string;
+  playerName: string;
+  nameKey: string;
+  authUid: string;
+  connected: boolean;
+  joinedAt: number;
+  currentCash: number;
+  currentInventory: number;
+  currentDemand: number;
+}
+
 export interface SupplierState {
   lastOrder: number;
   maxOrder: number;
@@ -159,6 +204,7 @@ export interface RoundHistoryEntry {
   orders: Record<SupplierKey, number>;
   allocated: Record<SupplierKey, number>;
   cancelled: Record<SupplierKey, boolean>;
+  capacityLimited?: Record<SupplierKey, boolean>;
   arrivals: number;
   demand: number;
   sold: number;
@@ -183,7 +229,8 @@ export interface PlayerStateDoc {
   suppliers: Record<SupplierKey, SupplierState>;
   transit: TransitState;
   roundHistory: RoundHistoryEntry[];
+  lastSubmittedRound?: number;
+  lastConfirmedResultsRound?: number;
 }
 
-// ---- Orders ----
 export type OrderMap = Record<SupplierKey, number>;

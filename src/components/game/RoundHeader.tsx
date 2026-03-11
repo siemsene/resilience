@@ -7,9 +7,20 @@ interface Props {
   inventory: number;
   marketDemand: number;
   phase: string;
+  submissionAlert?: string | null;
+  submissionAlertUrgent?: boolean;
 }
 
-export function RoundHeader({ round, totalRounds, cash, inventory, marketDemand, phase }: Props) {
+export function RoundHeader({
+  round,
+  totalRounds,
+  cash,
+  inventory,
+  marketDemand,
+  phase,
+  submissionAlert,
+  submissionAlertUrgent = false,
+}: Props) {
   const phaseLabel = phase === 'ordering' ? 'Place Orders'
     : phase === 'processing' ? 'Processing...'
     : phase === 'waiting' ? 'Waiting...'
@@ -41,8 +52,15 @@ export function RoundHeader({ round, totalRounds, cash, inventory, marketDemand,
         </div>
       </div>
 
-      <div className={styles.phase}>
-        <span className={styles.phaseLabel}>{phaseLabel}</span>
+      <div className={styles.phaseCluster}>
+        <div className={styles.phase}>
+          <span className={styles.phaseLabel}>{phaseLabel}</span>
+        </div>
+        {submissionAlert && (
+          <div className={`${styles.submissionAlert} ${submissionAlertUrgent ? styles.submissionAlertUrgent : ''}`}>
+            <span className={styles.submissionAlertLabel}>{submissionAlert}</span>
+          </div>
+        )}
       </div>
     </div>
   );

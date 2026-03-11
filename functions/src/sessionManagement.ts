@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import type { SessionDoc } from './types';
+import { buildEmptyDisruptions, sessionInstructorStateRef, sessionPublicStateRef, sessionRef } from './sessionState';
 
 const db = admin.firestore();
 
@@ -21,8 +22,7 @@ export const endSessionEarly = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Session ID is required');
   }
 
-  const sessionRef = db.collection('sessions').doc(sessionId);
-  const sessionSnap = await sessionRef.get();
+  const sessionSnap = await sessionRef(sessionId).get();
   if (!sessionSnap.exists) {
     throw new HttpsError('not-found', 'Session not found');
   }
@@ -34,13 +34,28 @@ export const endSessionEarly = onCall(async (request) => {
     throw new HttpsError('failed-precondition', 'Session is already ended');
   }
 
-  await sessionRef.update({
+  const activeDisruptions = buildEmptyDisruptions();
+  const batch = db.batch();
+  batch.update(sessionRef(sessionId), {
     status: 'completed',
     currentPhase: 'results',
-    submittedPlayers: [],
-    activeDisruptions: { china: null, mexico: null, us: null },
+    submittedCount: 0,
+    activeDisruptions,
     endedEarlyAt: Date.now(),
   });
+  batch.set(sessionPublicStateRef(sessionId), {
+    sessionId,
+    status: 'completed',
+    currentPhase: 'results',
+    submittedCount: 0,
+    activeDisruptions,
+  }, { merge: true });
+  batch.set(sessionInstructorStateRef(sessionId), {
+    sessionId,
+    submittedPlayerIds: [],
+    updatedAt: Date.now(),
+  }, { merge: true });
+  await batch.commit();
 
   return { success: true };
 });
@@ -56,8 +71,7 @@ export const deleteSession = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Session ID is required');
   }
 
-  const sessionRef = db.collection('sessions').doc(sessionId);
-  const sessionSnap = await sessionRef.get();
+  const sessionSnap = await sessionRef(sessionId).get();
   if (!sessionSnap.exists) {
     throw new HttpsError('not-found', 'Session not found');
   }
@@ -65,6 +79,6 @@ export const deleteSession = onCall(async (request) => {
   const session = { id: sessionSnap.id, ...sessionSnap.data() } as SessionDoc;
   assertInstructor(session, uid);
 
-  await db.recursiveDelete(sessionRef);
+  await db.recursiveDelete(sessionRef(sessionId));
   return { success: true };
 });

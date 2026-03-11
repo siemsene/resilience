@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:host": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "preview:host": "vite preview --host 127.0.0.1 --port 4173 --strictPort"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "firebase": "^12.9.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.1.0",

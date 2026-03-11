@@ -1,5 +1,12 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  browserSessionPersistence,
+  connectAuthEmulator,
+  getAuth,
+  setPersistence,
+  signInAnonymously,
+} from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
@@ -17,11 +24,24 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app);
 
-// Connect to emulators in development
 if (import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true') {
   connectAuthEmulator(auth, 'http://localhost:9099');
   connectFirestoreEmulator(db, 'localhost', 8080);
   connectFunctionsEmulator(functions, 'localhost', 5001);
+}
+
+export async function prepareInstructorAuth() {
+  await setPersistence(auth, browserLocalPersistence);
+}
+
+export async function ensurePlayerAuth() {
+  if (auth.currentUser) {
+    return auth.currentUser;
+  }
+
+  await setPersistence(auth, browserSessionPersistence);
+  const credential = await signInAnonymously(auth);
+  return credential.user;
 }
 
 export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || '';

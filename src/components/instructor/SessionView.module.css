@@ -26,6 +26,27 @@
 .sessionActions {
   display: flex;
   gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.noticeCard {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.confirmRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.confirmActions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .section {
@@ -36,9 +57,29 @@
   margin-bottom: var(--space-md);
 }
 
+.playerHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+
+.playerControls {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.searchInput {
+  min-width: 220px;
+}
+
 .playerGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: var(--space-sm);
 }
 
@@ -56,6 +97,15 @@
 .playerStatus {
   font-size: 12px;
   color: var(--color-success);
+}
+
+.paginationRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+  flex-wrap: wrap;
 }
 
 .disruptionList {
@@ -91,4 +141,22 @@
   background: var(--color-success);
   border-radius: 4px;
   transition: width 0.3s ease;
+}
+
+.capacityHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.capacityRoundTag {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--bg-card-hover);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
 }

@@ -6,7 +6,7 @@ import { PlayerGameView } from './PlayerGameView';
 import s from '../../styles/shared.module.css';
 
 export function GamePage() {
-  const { session, playerState, sessionId, playerId, loading, clearPlayerIdentity } = useGame();
+  const { session, playerState, playerName, sessionId, playerId, loading, clearPlayerIdentity } = useGame();
   const navigate = useNavigate();
 
   if (loading) {
@@ -28,7 +28,7 @@ export function GamePage() {
 
   // Lobby
   if (session.status === 'lobby') {
-    return <PlayerLobby session={session} playerId={playerId} onLeave={() => { clearPlayerIdentity(); navigate('/'); }} />;
+    return <PlayerLobby session={session} playerId={playerId} playerName={playerName} onLeave={() => { clearPlayerIdentity(); navigate('/'); }} />;
   }
 
   // Setup
@@ -53,7 +53,7 @@ export function GamePage() {
             Waiting for other players to finish their setup...
           </p>
           <p style={{ color: 'var(--text-light)', marginTop: '4px', fontSize: '14px' }}>
-            {session.submittedPlayers?.length || 0} / {Object.keys(session.players).length} ready
+            {session.submittedCount} / {session.playerCount} ready
           </p>
         </div>
       </div>
@@ -74,3 +74,4 @@ export function GamePage() {
 
   return <div className={s.loadingPage}><div className={s.spinner} /> Loading...</div>;
 }
+

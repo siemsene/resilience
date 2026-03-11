@@ -1,11 +1,12 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { SessionDoc, PlayerStateDoc } from '../types';
+import type { PlayerStateDoc, SessionDoc, SessionPlayerDoc, SessionPublicState } from '../types';
 
 interface GameContextValue {
   session: SessionDoc | null;
   playerState: PlayerStateDoc | null;
+  playerName: string | null;
   sessionId: string | null;
   playerId: string | null;
   loading: boolean;
@@ -33,86 +34,115 @@ function loadStoredIdentity(): { sessionId: string | null; playerId: string | nu
       return { sessionId: parsed.sessionId, playerId: parsed.playerId };
     }
   } catch {
-    // ignore invalid local storage
+    // ignore invalid storage payloads
   }
   return { sessionId: null, playerId: null };
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [identity, setIdentity] = useState(loadStoredIdentity);
-  const [sessionRecord, setSessionRecord] = useState<{ key: string | null; data: SessionDoc | null }>({
-    key: null,
-    data: null,
-  });
-  const [playerStateRecord, setPlayerStateRecord] = useState<{ key: string | null; data: PlayerStateDoc | null }>({
-    key: null,
-    data: null,
-  });
+  const [sessionMeta, setSessionMeta] = useState<SessionDoc | null>(null);
+  const [publicState, setPublicState] = useState<SessionPublicState | null>(null);
+  const [playerRoster, setPlayerRoster] = useState<SessionPlayerDoc | null>(null);
+  const [playerState, setPlayerState] = useState<PlayerStateDoc | null>(null);
 
   const sessionId = identity.sessionId;
   const playerId = identity.playerId;
-  const playerStateKey = sessionId && playerId ? `${sessionId}:${playerId}` : null;
 
-  // Identity is loaded synchronously from sessionStorage (tab-local).
-  const loading = false;
-
-  // Session listener
   useEffect(() => {
     if (!sessionId) {
-      return;
+      return undefined;
     }
 
-    const unsub = onSnapshot(doc(db, 'sessions', sessionId), (snap) => {
-      if (snap.exists()) {
-        setSessionRecord({ key: sessionId, data: { id: snap.id, ...snap.data() } as SessionDoc });
-      } else {
-        setSessionRecord({ key: sessionId, data: null });
+    let cancelled = false;
+    getDoc(doc(db, 'sessions', sessionId)).then((snap) => {
+      if (!cancelled) {
+        setSessionMeta(snap.exists() ? ({ id: snap.id, ...snap.data() } as SessionDoc) : null);
       }
     });
 
-    return unsub;
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
-  // Player state listener
   useEffect(() => {
-    if (!sessionId || !playerId || !playerStateKey) {
-      return;
+    if (!sessionId) {
+      return undefined;
     }
 
-    const unsub = onSnapshot(
-      doc(db, 'sessions', sessionId, 'playerStates', playerId),
-      (snap) => {
-        if (snap.exists()) {
-          setPlayerStateRecord({ key: playerStateKey, data: snap.data() as PlayerStateDoc });
-        } else {
-          setPlayerStateRecord({ key: playerStateKey, data: null });
-        }
-      }
-    );
+    return onSnapshot(doc(db, 'sessions', sessionId, 'state', 'public'), (snap) => {
+      setPublicState(snap.exists() ? (snap.data() as SessionPublicState) : null);
+    });
+  }, [sessionId]);
 
-    return unsub;
-  }, [playerId, playerStateKey, sessionId]);
+  useEffect(() => {
+    if (!sessionId || !playerId) {
+      return undefined;
+    }
+
+    return onSnapshot(doc(db, 'sessions', sessionId, 'players', playerId), (snap) => {
+      setPlayerRoster(snap.exists() ? (snap.data() as SessionPlayerDoc) : null);
+    });
+  }, [playerId, sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || !playerId) {
+      return undefined;
+    }
+
+    return onSnapshot(doc(db, 'sessions', sessionId, 'playerStates', playerId), (snap) => {
+      setPlayerState(snap.exists() ? (snap.data() as PlayerStateDoc) : null);
+    });
+  }, [playerId, sessionId]);
 
   const setPlayerIdentity = (sid: string, pid: string) => {
+    setSessionMeta(null);
+    setPublicState(null);
+    setPlayerRoster(null);
+    setPlayerState(null);
     setIdentity({ sessionId: sid, playerId: pid });
     storage.setItem(STORAGE_KEY, JSON.stringify({ sessionId: sid, playerId: pid }));
-    localStorage.removeItem(STORAGE_KEY); // remove any legacy cross-tab value
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   const clearPlayerIdentity = () => {
     setIdentity({ sessionId: null, playerId: null });
-    setSessionRecord({ key: null, data: null });
-    setPlayerStateRecord({ key: null, data: null });
+    setSessionMeta(null);
+    setPublicState(null);
+    setPlayerRoster(null);
+    setPlayerState(null);
     storage.removeItem(STORAGE_KEY);
     localStorage.removeItem(STORAGE_KEY);
   };
 
-  const session = sessionId && sessionRecord.key === sessionId ? sessionRecord.data : null;
-  const playerState =
-    playerStateKey && playerStateRecord.key === playerStateKey ? playerStateRecord.data : null;
+  const playerName = playerState?.playerName ?? playerRoster?.playerName ?? null;
+
+  const session = useMemo(() => {
+    if (!sessionMeta) {
+      return null;
+    }
+    if (!publicState) {
+      return sessionMeta;
+    }
+    return {
+      ...sessionMeta,
+      status: publicState.status,
+      currentRound: publicState.currentRound,
+      currentPhase: publicState.currentPhase,
+      activeDisruptions: publicState.activeDisruptions,
+      submittedCount: publicState.submittedCount,
+      playerCount: publicState.playerCount,
+      totalMarketDemand: publicState.totalMarketDemand,
+      resultsRound: publicState.resultsRound,
+      resultsConfirmedCount: publicState.resultsConfirmedCount,
+    } satisfies SessionDoc;
+  }, [publicState, sessionMeta]);
+
+  const loading = Boolean(sessionId && !sessionMeta && !publicState);
 
   return (
-    <GameContext.Provider value={{ session, playerState, sessionId, playerId, loading, setPlayerIdentity, clearPlayerIdentity }}>
+    <GameContext.Provider value={{ session, playerState, playerName, sessionId, playerId, loading, setPlayerIdentity, clearPlayerIdentity }}>
       {children}
     </GameContext.Provider>
   );

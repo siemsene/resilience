@@ -76,10 +76,35 @@
 }
 
 .orderRow {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
   font-size: 13px;
-  padding: 2px 0;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(212, 197, 169, 0.45);
+}
+
+.orderRow:last-of-type {
+  border-bottom: none;
+}
+
+.orderSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.orderValues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.orderStatus {
+  display: inline-flex;
+  align-items: center;
 }
 
 .supplierName {
@@ -89,6 +114,13 @@
 .fulfilled { color: var(--color-success); }
 .partial { color: var(--color-warning); }
 .cancelled { color: var(--color-danger); }
+
+.capacityNotice {
+  margin: var(--space-sm) 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
 
 .demandRow {
   display: flex;
@@ -115,6 +147,13 @@
   font-size: 14px;
 }
 
+.confirmationHint {
+  margin: 12px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 .dismiss {
   display: block;
   width: 100%;
@@ -127,6 +166,11 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.dismiss:disabled {
+  opacity: 0.75;
+  cursor: progress;
 }
 
 .dismiss:hover {

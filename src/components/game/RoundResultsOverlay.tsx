@@ -4,38 +4,48 @@ import styles from './RoundResultsOverlay.module.css';
 
 interface Props {
   round: RoundHistoryEntry;
-  onDismiss: () => void;
+  onConfirm: () => void;
+  confirming: boolean;
+  confirmedCount: number;
+  playerCount: number;
 }
 
-export function RoundResultsOverlay({ round, onDismiss }: Props) {
+export function RoundResultsOverlay({ round, onConfirm, confirming, confirmedCount, playerCount }: Props) {
   const profit = round.revenue - round.orderCosts - round.holdingCosts;
+  const hadCapacityRationing = SUPPLIER_KEYS.some((key) => round.capacityLimited?.[key]);
 
   return (
-    <div className={styles.overlay} onClick={onDismiss}>
-      <div className={styles.card} onClick={e => e.stopPropagation()}>
+    <div className={styles.overlay}>
+      <div className={styles.card}>
         <h2 className={styles.title}>Round {round.round} Results</h2>
 
         <div className={styles.grid}>
-          {/* Arrivals */}
           <div className={styles.section}>
             <h4 className={styles.sectionTitle}>Arrivals</h4>
             <div className={styles.bigNumber}>{round.arrivals.toLocaleString()}</div>
             <span className={styles.label}>units arrived</span>
           </div>
 
-          {/* Orders & Allocation */}
           <div className={styles.section}>
             <h4 className={styles.sectionTitle}>Orders</h4>
             {SUPPLIER_KEYS.filter(k => round.orders[k] > 0).map(key => (
               <div key={key} className={styles.orderRow}>
-                <span className={styles.supplierName}>{SUPPLIER_LABELS[key]}</span>
-                <span>
+                <div className={styles.orderSummary}>
+                  <span className={styles.supplierName}>{SUPPLIER_LABELS[key]}</span>
+                  <div className={styles.orderValues}>
+                    <span>Ordered <strong>{round.orders[key].toLocaleString()}</strong></span>
+                    <span>Delivered <strong>{round.allocated[key].toLocaleString()}</strong></span>
+                  </div>
+                </div>
+                <span className={styles.orderStatus}>
                   {round.cancelled[key] ? (
                     <span className={styles.cancelled}>Cancelled</span>
+                  ) : round.capacityLimited?.[key] ? (
+                    <span className={styles.partial}>Capacity shortage</span>
                   ) : round.allocated[key] < round.orders[key] ? (
-                    <span className={styles.partial}>{round.allocated[key]}/{round.orders[key]}</span>
+                    <span className={styles.partial}>Partial delivery</span>
                   ) : (
-                    <span className={styles.fulfilled}>{round.allocated[key]}</span>
+                    <span className={styles.fulfilled}>Delivered in full</span>
                   )}
                 </span>
               </div>
@@ -43,9 +53,13 @@ export function RoundResultsOverlay({ round, onDismiss }: Props) {
             {SUPPLIER_KEYS.every(k => round.orders[k] === 0) && (
               <span className={styles.label}>No orders placed</span>
             )}
+            {hadCapacityRationing && (
+              <p className={styles.capacityNotice}>
+                Some shipments were rationed because supplier orders exceeded hidden supplier capacity.
+              </p>
+            )}
           </div>
 
-          {/* Demand */}
           <div className={styles.section}>
             <h4 className={styles.sectionTitle}>Demand</h4>
             <div className={styles.demandRow}>
@@ -70,7 +84,6 @@ export function RoundResultsOverlay({ round, onDismiss }: Props) {
             )}
           </div>
 
-          {/* Financials */}
           <div className={styles.section}>
             <h4 className={styles.sectionTitle}>Financials</h4>
             <div className={styles.demandRow}>
@@ -99,8 +112,13 @@ export function RoundResultsOverlay({ round, onDismiss }: Props) {
           <span>Inventory: <strong>{round.inventory.toLocaleString()}</strong></span>
           <span>Demand: <strong>{round.marketDemand.toLocaleString()}</strong></span>
         </div>
+        <p className={styles.confirmationHint}>
+          {confirmedCount.toLocaleString()} / {playerCount.toLocaleString()} players confirmed this summary.
+        </p>
 
-        <button className={styles.dismiss} onClick={onDismiss}>Continue</button>
+        <button className={styles.dismiss} onClick={onConfirm} disabled={confirming}>
+          {confirming ? 'Confirming...' : 'Confirm and Continue'}
+        </button>
       </div>
     </div>
   );
