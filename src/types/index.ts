@@ -89,7 +89,7 @@ export const DEFAULT_PARAMS: SessionParams = {
   startingCash: 200000,
   startingDemand: 1000,
   sellingPrice: 60,
-  holdingCostPerUnit: 5,
+  holdingCostPerUnit: 12,
   baseCost: { china: 20, mexico: 40, us: 80 },
   unreliableCostModifier: 0.8,
   volumeDiscountThresholds: [
