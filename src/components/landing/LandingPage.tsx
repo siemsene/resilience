@@ -25,17 +25,34 @@ function isDuplicatePlayerNameError(err: unknown) {
   return code === 'functions/already-exists' || message.includes('already exists');
 }
 
-function formatJoinError(joinErr: unknown, reconnectErr: unknown) {
-  const joinMessage = getCallableErrorMessage(joinErr, 'Failed to join session.');
-  const reconnectMessage = getCallableErrorMessage(reconnectErr, 'Reconnect failed.');
+function isLateJoinReconnectError(err: unknown) {
+  const code = getCallableErrorCode(err);
+  const message = getCallableErrorMessage(err, '').toLowerCase();
+  return code === 'functions/failed-precondition' && message.includes('only existing players can reconnect');
+}
 
-  if (isDuplicatePlayerNameError(joinErr)) {
-    return `That name is already in use in this session. If it is yours, check the spelling and try reconnecting from the same tab. ${reconnectMessage}`;
+function isExpiredSessionError(err: unknown) {
+  const code = getCallableErrorCode(err);
+  const message = getCallableErrorMessage(err, '').toLowerCase();
+  return code === 'functions/failed-precondition' && message.includes('expired');
+}
+
+function formatJoinError(err: unknown) {
+  const joinMessage = getCallableErrorMessage(err, 'Failed to join session.');
+
+  if (isDuplicatePlayerNameError(err)) {
+    return 'That name is already in use in this lobby. Pick a different player name.';
   }
   if (joinMessage.toLowerCase().includes('no session found')) {
     return 'No session matches that code. Check the six-character code and try again.';
   }
-  return joinMessage || reconnectMessage;
+  if (isLateJoinReconnectError(err)) {
+    return 'This session has already started. Enter the exact same player name you used before to reconnect.';
+  }
+  if (isExpiredSessionError(err)) {
+    return 'This session has expired and is no longer available.';
+  }
+  return joinMessage;
 }
 
 export function LandingPage() {
@@ -68,27 +85,15 @@ export function LandingPage() {
     setLoading(true);
     try {
       await ensurePlayerAuth();
-      const joinFn = httpsCallable<{ sessionCode: string; playerName: string }, { sessionId: string; playerId: string }>(functions, 'joinSession');
+      const joinFn = httpsCallable<
+        { sessionCode: string; playerName: string },
+        { sessionId: string; playerId: string; action: 'joined' | 'reconnected' }
+      >(functions, 'joinSession');
       const result = await joinFn({ sessionCode, playerName });
       setPlayerIdentity(result.data.sessionId, result.data.playerId);
       navigate('/game');
-      return;
-    } catch (joinErr) {
-      if (!isDuplicatePlayerNameError(joinErr)) {
-        setError(getCallableErrorMessage(joinErr, 'Failed to join session.'));
-        return;
-      }
-
-      try {
-        await ensurePlayerAuth();
-        const reconnectFn = httpsCallable<{ sessionCode: string; playerName: string }, { sessionId: string; playerId: string }>(functions, 'reconnectPlayer');
-        const result = await reconnectFn({ sessionCode, playerName });
-        setPlayerIdentity(result.data.sessionId, result.data.playerId);
-        navigate('/game');
-        return;
-      } catch (reconnectErr) {
-        setError(formatJoinError(joinErr, reconnectErr));
-      }
+    } catch (err) {
+      setError(formatJoinError(err));
     } finally {
       setLoading(false);
     }
@@ -186,11 +191,14 @@ export function LandingPage() {
                 />
               </div>
               <p style={{ color: 'var(--text-light)', fontSize: 13, margin: '0 0 8px' }}>
+                Use the same session code and player name to reconnect after the game starts. Before the game starts, each player name must be unique.
+              </p>
+              <p style={{ color: 'var(--text-light)', fontSize: 13, margin: '0 0 8px' }}>
                 Each browser tab keeps its own player sign-in, so you can test multiple students in parallel from one browser.
               </p>
               {error && <p className={s.error}>{error}</p>}
               <button type="submit" className={s.btnPrimary} disabled={loading} style={{ width: '100%', marginTop: '8px' }}>
-                {loading ? 'Joining or reconnecting...' : 'Join Session'}
+                {loading ? 'Joining or reconnecting...' : 'Join or Reconnect'}
               </button>
             </form>
           )}

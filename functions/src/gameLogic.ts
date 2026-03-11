@@ -3,7 +3,7 @@ import {
   SupplierKey, Country, OrderMap, SessionParams, ActiveDisruption,
   DisruptionSchedule, RoundHistoryEntry, PlayerStateDoc, SupplierCapacityMap,
 } from './types';
-import { getCurrentSupplierMaxOrder, getNextSupplierMaxOrder } from './orderLimits';
+import { getNextSupplierMaxOrder } from './orderLimits';
 import {
   buildNextSupplierCapacities,
   getSubmittedOrderTotals,

@@ -9,6 +9,7 @@ interface GameContextValue {
   playerName: string | null;
   sessionId: string | null;
   playerId: string | null;
+  isOffline: boolean;
   loading: boolean;
   setPlayerIdentity: (sessionId: string, playerId: string) => void;
   clearPlayerIdentity: () => void;
@@ -45,9 +46,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [publicState, setPublicState] = useState<SessionPublicState | null>(null);
   const [playerRoster, setPlayerRoster] = useState<SessionPlayerDoc | null>(null);
   const [playerState, setPlayerState] = useState<PlayerStateDoc | null>(null);
+  const [isOffline, setIsOffline] = useState(() => !window.navigator.onLine);
 
   const sessionId = identity.sessionId;
   const playerId = identity.playerId;
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (!sessionId) {
@@ -142,7 +157,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const loading = Boolean(sessionId && !sessionMeta && !publicState);
 
   return (
-    <GameContext.Provider value={{ session, playerState, playerName, sessionId, playerId, loading, setPlayerIdentity, clearPlayerIdentity }}>
+    <GameContext.Provider value={{ session, playerState, playerName, sessionId, playerId, isOffline, loading, setPlayerIdentity, clearPlayerIdentity }}>
       {children}
     </GameContext.Provider>
   );

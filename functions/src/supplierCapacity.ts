@@ -9,7 +9,6 @@ import {
 } from './types';
 
 const DEFAULT_TARGET_MULTIPLIER = 1.4;
-const DEFAULT_PRIOR_WEIGHT = 0.8;
 const DEFAULT_TARGET_WEIGHT = 0.2;
 const DEFAULT_MIN_PER_PLAYER = 100;
 
