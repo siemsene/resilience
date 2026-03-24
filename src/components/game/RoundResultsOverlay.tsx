@@ -1,6 +1,8 @@
 import type { RoundHistoryEntry } from '../../types';
 import { SUPPLIER_KEYS, SUPPLIER_LABELS } from '../../types';
+import { CountdownTimer } from './CountdownTimer';
 import styles from './RoundResultsOverlay.module.css';
+import s from '../../styles/shared.module.css';
 
 interface Props {
   round: RoundHistoryEntry;
@@ -8,9 +10,10 @@ interface Props {
   confirming: boolean;
   confirmedCount: number;
   playerCount: number;
+  deadline?: number;
 }
 
-export function RoundResultsOverlay({ round, onConfirm, confirming, confirmedCount, playerCount }: Props) {
+export function RoundResultsOverlay({ round, onConfirm, confirming, deadline }: Props) {
   const profit = round.revenue - round.orderCosts - round.holdingCosts;
   const hadCapacityRationing = SUPPLIER_KEYS.some((key) => round.capacityLimited?.[key]);
 
@@ -100,7 +103,7 @@ export function RoundResultsOverlay({ round, onConfirm, confirming, confirmedCou
             </div>
             <div className={`${styles.demandRow} ${styles.profitRow}`}>
               <span>Profit:</span>
-              <strong style={{ color: profit >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+              <strong className={profit >= 0 ? s.positive : s.negative}>
                 {profit >= 0 ? '+' : ''}${profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </strong>
             </div>
@@ -112,9 +115,11 @@ export function RoundResultsOverlay({ round, onConfirm, confirming, confirmedCou
           <span>Inventory: <strong>{round.inventory.toLocaleString()}</strong></span>
           <span>Demand: <strong>{round.marketDemand.toLocaleString()}</strong></span>
         </div>
-        <p className={styles.confirmationHint}>
-          {confirmedCount.toLocaleString()} / {playerCount.toLocaleString()} players confirmed this summary.
-        </p>
+        {deadline != null && (
+          <p className={styles.confirmationHint}>
+            Next round timer: <CountdownTimer deadline={deadline} onExpired={() => {}} />
+          </p>
+        )}
 
         <button className={styles.dismiss} onClick={onConfirm} disabled={confirming}>
           {confirming ? 'Confirming...' : 'Confirm and Continue'}

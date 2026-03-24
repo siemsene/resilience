@@ -76,19 +76,19 @@ export function InitialSetup({ session, playerId, sessionId }: Props) {
           </div>
           <div className={styles.stat}>
             <span className={styles.statLabel}>Est. Setup Cost</span>
-            <span className={styles.statValue} style={{ color: 'var(--color-danger)' }}>
+            <span className={`${styles.statValue} ${s.negative}`}>
               -${estimatedCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
           </div>
           <div className={styles.stat}>
             <span className={styles.statLabel}>Cash After</span>
-            <span className={styles.statValue} style={{ color: cashAfter >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+            <span className={`${styles.statValue} ${cashAfter >= 0 ? s.positive : s.negative}`}>
               ${cashAfter.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
           </div>
           <div className={styles.stat}>
             <span className={styles.statLabel}>Remaining</span>
-            <span className={styles.statValue} style={{ color: remaining === 0 ? 'var(--color-success)' : 'var(--color-warning)' }}>
+            <span className={`${styles.statValue} ${remaining === 0 ? s.positive : s.negative}`}>
               {remaining.toLocaleString()}
             </span>
           </div>
@@ -143,13 +143,12 @@ export function InitialSetup({ session, playerId, sessionId }: Props) {
           ))}
         </div>
 
-        {error && <p className={s.error} style={{ marginTop: '16px' }}>{error}</p>}
+        {error && <p className={`${s.error} ${s.mtMd}`}>{error}</p>}
 
         <button
-          className={`${s.btnPrimary} ${s.btnLarge}`}
+          className={`${s.btnPrimary} ${s.btnLarge} ${styles.submitBtn}`}
           onClick={handleSubmit}
           disabled={loading || remaining !== 0}
-          style={{ width: '100%', marginTop: 'var(--space-lg)' }}
         >
           {loading ? 'Submitting...' : remaining === 0 ? 'Confirm Setup' : `Distribute ${remaining} more units`}
         </button>

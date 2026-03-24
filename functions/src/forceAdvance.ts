@@ -137,12 +137,21 @@ export const forceAdvance = onCall(async (request) => {
 
   if (session.status === 'active' && session.currentPhase === 'ordering') {
     for (const player of unsubmittedPlayerDocs) {
-      const zeroOrders: Record<string, number> = {};
-      SUPPLIER_KEYS.forEach((key) => { zeroOrders[key] = 0; });
+      const playerStateSnap = await sessionRef(sessionId).collection('playerStates').doc(player.playerId).get();
+      const pState = playerStateSnap.exists ? playerStateSnap.data() : null;
+      const repeatOrders: Record<string, number> = {};
+      SUPPLIER_KEYS.forEach((key) => {
+        const country = SUPPLIER_COUNTRY[key];
+        if (session.activeDisruptions[country]) {
+          repeatOrders[key] = 0;
+        } else {
+          repeatOrders[key] = pState?.suppliers?.[key]?.lastOrder ?? 0;
+        }
+      });
       await sessionRef(sessionId)
         .collection('rounds').doc(String(session.currentRound))
         .collection('orders').doc(player.playerId)
-        .set({ orders: zeroOrders, submittedAt: Date.now(), forced: true });
+        .set({ orders: repeatOrders, submittedAt: Date.now(), forced: true });
       await sessionRef(sessionId).collection('playerStates').doc(player.playerId).set({
         lastSubmittedRound: session.currentRound,
       }, { merge: true });

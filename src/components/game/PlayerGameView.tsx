@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
 import type { SessionDoc, PlayerStateDoc, SupplierKey, OrderMap } from '../../types';
@@ -114,20 +114,22 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
     updateDraft((currentState) => ({ ...currentState, submitError: '' }));
   };
 
-  const hasSubmitted = playerState.lastSubmittedRound === session.currentRound;
   const resultsRound = session.resultsRound ?? 0;
-  const displayRound = session.currentPhase === 'results' && resultsRound > 0
-    ? resultsRound
-    : session.currentRound;
   const showingCurrentResults = session.currentPhase === 'results'
     && latestRoundNumber > 0
     && latestRoundNumber === resultsRound;
   const hasConfirmedCurrentResults = showingCurrentResults
     && playerState.lastConfirmedResultsRound === resultsRound;
+  const personallyOrdering = hasConfirmedCurrentResults && session.currentPhase === 'results';
+  const hasSubmitted = playerState.lastSubmittedRound === session.currentRound;
+  const displayRound = session.currentPhase === 'results' && resultsRound > 0 && !personallyOrdering
+    ? resultsRound
+    : session.currentRound;
   const showResults = showingCurrentResults && !hasConfirmedCurrentResults;
+  const isOrdering = session.currentPhase === 'ordering' || personallyOrdering;
   const otherPlayerCount = Math.max(0, session.playerCount - 1);
   const otherSubmittedCount = Math.max(0, session.submittedCount - (hasSubmitted ? 1 : 0));
-  const showSubmissionAlert = session.currentPhase === 'ordering' && session.playerCount > 1;
+  const showSubmissionAlert = isOrdering && session.playerCount > 1;
   const submissionAlert = showSubmissionAlert
     ? `${otherSubmittedCount.toLocaleString()} / ${otherPlayerCount.toLocaleString()} others submitted`
     : null;
@@ -239,6 +241,44 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
     setSubmitting(false);
   };
 
+  const handleTimerExpired = useCallback(async () => {
+    if (hasSubmitted || submitting) return;
+
+    const hasAnyOrders = SUPPLIER_KEYS.some(k => orders[k] > 0);
+    if (hasAnyOrders) {
+      await handleSubmit();
+      return;
+    }
+
+    if (repeatSourceOrders) {
+      const filteredOrders = { ...repeatSourceOrders };
+      for (const key of SUPPLIER_KEYS) {
+        if (session.activeDisruptions[SUPPLIER_COUNTRY[key]]) {
+          filteredOrders[key] = 0;
+        }
+      }
+      setSubmitting(true);
+      try {
+        const submitFn = httpsCallable(functions, 'submitOrders');
+        await submitFn({ sessionId, playerId, orders: filteredOrders });
+      } catch (err) {
+        setDraftSubmitError(err instanceof Error ? err.message : 'Auto-submit failed');
+      }
+      setSubmitting(false);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const submitFn = httpsCallable(functions, 'submitOrders');
+      await submitFn({ sessionId, playerId, orders: createEmptyOrders() });
+    } catch (err) {
+      setDraftSubmitError(err instanceof Error ? err.message : 'Auto-submit failed');
+    }
+    setSubmitting(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSubmitted, submitting, orders, repeatSourceOrders, session.activeDisruptions, sessionId, playerId]);
+
   const handleConfirmResults = async () => {
     if (!showResults) {
       return;
@@ -263,9 +303,11 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
         cash={playerState.cash}
         inventory={playerState.inventory}
         marketDemand={playerState.marketDemand}
-        phase={hasSubmitted ? 'waiting' : session.currentPhase}
+        phase={hasSubmitted ? 'waiting' : personallyOrdering ? 'ordering' : session.currentPhase}
         submissionAlert={submissionAlert}
         submissionAlertUrgent={submissionAlertUrgent}
+        deadline={isOrdering && !hasSubmitted ? session.roundDeadline : undefined}
+        onTimerExpired={handleTimerExpired}
       />
 
       <DisruptionBanner activeDisruptions={session.activeDisruptions} />
@@ -276,9 +318,9 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
         orders={orders}
         orderInputs={rawOrderInputs}
         onOrderChange={handleOrderChange}
-        disabled={hasSubmitted || submitting || session.currentPhase !== 'ordering'}
+        disabled={hasSubmitted || submitting || !isOrdering}
         validationWarnings={validationWarnings}
-        submitControls={!hasSubmitted && session.currentPhase === 'ordering' ? (
+        submitControls={!hasSubmitted && isOrdering ? (
           <div className={styles.boardActionStack}>
             <button
               className={`${s.btnSecondary} ${s.btnLarge} ${styles.boardRepeatButton}`}
@@ -312,8 +354,8 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
         ) : undefined}
       />
 
-      {submitError && <p className={s.error} style={{ textAlign: 'center', margin: '12px 0' }}>{submitError}</p>}
-      {showResults && resultsError && <p className={s.error} style={{ textAlign: 'center', margin: '12px 0' }}>{resultsError}</p>}
+      {submitError && <p className={`${s.error} ${s.textCenter}`}>{submitError}</p>}
+      {showResults && resultsError && <p className={`${s.error} ${s.textCenter}`}>{resultsError}</p>}
 
       {hasSubmitted && (
         <div className={styles.waitingOverlay}>
@@ -325,16 +367,6 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
         </div>
       )}
 
-      {hasConfirmedCurrentResults && session.currentPhase === 'results' && (
-        <div className={styles.waitingOverlay}>
-          <div className={s.spinner} />
-          <span>Waiting for the other players to confirm the round summary...</span>
-          <span className={styles.waitingCount}>
-            {(session.resultsConfirmedCount || 0).toLocaleString()} / {session.playerCount.toLocaleString()} confirmed
-          </span>
-        </div>
-      )}
-
       {showResults && latestRound && (
         <RoundResultsOverlay
           round={latestRound}
@@ -342,6 +374,7 @@ export function PlayerGameView({ session, playerState, playerId, sessionId }: Pr
           confirming={confirmingResults}
           confirmedCount={session.resultsConfirmedCount || 0}
           playerCount={session.playerCount}
+          deadline={session.roundDeadline}
         />
       )}
     </div>

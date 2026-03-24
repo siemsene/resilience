@@ -6,6 +6,8 @@ import { CreateSession } from './CreateSession';
 import { SessionView } from './SessionView';
 import s from '../../styles/shared.module.css';
 import styles from './InstructorPage.module.css';
+import { downloadInstructorGuide } from '../../utils/instructorGuide';
+import { downloadPlayerGuide } from '../../utils/playerGuide';
 
 type View = 'list' | 'create' | 'session';
 
@@ -29,7 +31,7 @@ export function InstructorPage() {
     <div className={s.pageContainer}>
       <div className={styles.header}>
         <div>
-          <h1 className={s.pageTitle} style={{ marginBottom: 0 }}>Instructor Dashboard</h1>
+          <h1 className={`${s.pageTitle} ${s.noMb}`}>Instructor Dashboard</h1>
           {user && <span className={styles.email}>{user.email}</span>}
         </div>
         <div className={styles.headerActions}>
@@ -43,6 +45,15 @@ export function InstructorPage() {
               + New Session
             </button>
           )}
+          <a className={s.btnSecondary} href="/Class Presentation.pptx" download="Class Presentation.pptx">
+            Class Presentation
+          </a>
+          <button className={s.btnSecondary} onClick={downloadInstructorGuide}>
+            Instructor Guide
+          </button>
+          <button className={s.btnSecondary} onClick={downloadPlayerGuide}>
+            Player Guide
+          </button>
           <button className={s.btnSecondary} onClick={() => { signOut(); navigate('/'); }}>
             Sign Out
           </button>

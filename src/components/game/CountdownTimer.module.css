@@ -1,0 +1,29 @@
+.timer {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.15);
+  white-space: nowrap;
+}
+
+.warning {
+  color: #ffd43b;
+  background: rgba(255, 212, 59, 0.18);
+}
+
+.critical {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.22);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}

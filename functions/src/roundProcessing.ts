@@ -117,6 +117,12 @@ export async function executeRoundProcessing(sessionId: string) {
     }
   }
 
+  const hasNewDisruption = (['china', 'mexico', 'us'] as const).some(
+    c => session.disruptionSchedule[c]?.includes(nextRound),
+  );
+  const timerBonus = hasNewDisruption ? (session.params.disruptionBonusTime ?? 60) : 0;
+  const roundDeadline = Date.now() + ((session.params.roundTimeLimit ?? 120) + timerBonus) * 1000;
+
   const summaryUpdate: Partial<SessionDoc> = {
     activeDisruptions: nextActiveDisruptions,
     totalMarketDemand: newTotalMarketDemand,
@@ -132,6 +138,7 @@ export async function executeRoundProcessing(sessionId: string) {
     summaryUpdate.currentPhase = 'results';
     summaryUpdate.resultsRound = round;
     summaryUpdate.resultsConfirmedCount = 0;
+    summaryUpdate.roundDeadline = roundDeadline;
   }
 
   const sessionSummaryUpdate = gameCompleted
@@ -143,6 +150,7 @@ export async function executeRoundProcessing(sessionId: string) {
         currentPhase: 'results' as const,
         resultsRound: deleteField,
         resultsConfirmedCount: deleteField,
+        roundDeadline: deleteField,
       }
     : {
         activeDisruptions: nextActiveDisruptions,
@@ -152,6 +160,7 @@ export async function executeRoundProcessing(sessionId: string) {
         currentPhase: 'results' as const,
         resultsRound: round,
         resultsConfirmedCount: 0,
+        roundDeadline,
       };
 
   batch.update(sessionRef(sessionId), sessionSummaryUpdate);
@@ -168,10 +177,12 @@ export async function executeRoundProcessing(sessionId: string) {
       ? {
           resultsRound: deleteField,
           resultsConfirmedCount: deleteField,
+          roundDeadline: deleteField,
         }
       : {
           resultsRound: round,
           resultsConfirmedCount: 0,
+          roundDeadline,
         }),
   }, { merge: true });
   batch.set(sessionInstructorStateRef(sessionId), {

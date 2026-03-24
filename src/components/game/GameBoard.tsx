@@ -259,6 +259,19 @@ export function GameBoard({
             <p className={styles.planEmpty}>Enter an order to build the current request estimate.</p>
           )}
         </div>
+
+        {validationWarnings.length > 0 && (
+          <div className={`${styles.infoBox} ${styles.warningPanel}`}>
+            <div className={styles.warningHeader}>Order Warnings</div>
+            <ul className={styles.warningList}>
+              {validationWarnings.map(warning => (
+                <li key={warning} className={styles.warningItem}>
+                  {warning}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Right: US destination */}
@@ -355,18 +368,6 @@ export function GameBoard({
           </div>
         </div>
 
-        {validationWarnings.length > 0 && (
-          <div className={`${styles.infoBox} ${styles.warningPanel}`}>
-            <div className={styles.warningHeader}>Order Warnings</div>
-            <ul className={styles.warningList}>
-              {validationWarnings.map(warning => (
-                <li key={warning} className={styles.warningItem}>
-                  {warning}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
     </div>
   );

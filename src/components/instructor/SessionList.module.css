@@ -97,6 +97,12 @@
   letter-spacing: 0.5px;
 }
 
+.status[data-status="lobby"]     { color: var(--text-secondary); }
+.status[data-status="setup"]     { color: var(--color-warning); }
+.status[data-status="active"]    { color: var(--color-success); }
+.status[data-status="completed"] { color: var(--us-primary); }
+.status[data-status="expired"]   { color: var(--text-light); }
+
 .cardBody {
   display: flex;
   gap: var(--space-lg);

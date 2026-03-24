@@ -1,7 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { createContext, useContext, useEffect, useEffectEvent, useMemo, useState, type ReactNode } from 'react';
+import { doc, getDoc, onSnapshot, type FirestoreError } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { PlayerStateDoc, SessionDoc, SessionPlayerDoc, SessionPublicState } from '../types';
+import { useAuth } from './AuthContext';
+import type { PlayerStateDoc, SessionDoc, SessionMemberDoc, SessionPlayerDoc, SessionPublicState } from '../types';
+import { writePlayerRemovalFlash } from '../utils/playerRemoval';
 
 interface GameContextValue {
   session: SessionDoc | null;
@@ -41,6 +43,7 @@ function loadStoredIdentity(): { sessionId: string | null; playerId: string | nu
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [identity, setIdentity] = useState(loadStoredIdentity);
   const [sessionMeta, setSessionMeta] = useState<SessionDoc | null>(null);
   const [publicState, setPublicState] = useState<SessionPublicState | null>(null);
@@ -50,6 +53,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const sessionId = identity.sessionId;
   const playerId = identity.playerId;
+
+  const resetSessionState = () => {
+    setSessionMeta(null);
+    setPublicState(null);
+    setPlayerRoster(null);
+    setPlayerState(null);
+  };
+
+  const clearPlayerIdentity = () => {
+    setIdentity({ sessionId: null, playerId: null });
+    resetSessionState();
+    storage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
+  };
+
+  const handleRemoval = useEffectEvent((removedPlayerName?: string | null) => {
+    writePlayerRemovalFlash(removedPlayerName ?? null);
+    clearPlayerIdentity();
+  });
+
+  const handleSnapshotError = useEffectEvent((err: FirestoreError) => {
+    if (err.code === 'permission-denied' || err.code === 'unauthenticated') {
+      resetSessionState();
+    }
+  });
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -70,11 +98,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false;
-    getDoc(doc(db, 'sessions', sessionId)).then((snap) => {
-      if (!cancelled) {
-        setSessionMeta(snap.exists() ? ({ id: snap.id, ...snap.data() } as SessionDoc) : null);
-      }
-    });
+    getDoc(doc(db, 'sessions', sessionId))
+      .then((snap) => {
+        if (!cancelled) {
+          setSessionMeta(snap.exists() ? ({ id: snap.id, ...snap.data() } as SessionDoc) : null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSessionMeta(null);
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -82,13 +116,38 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [sessionId]);
 
   useEffect(() => {
+    if (!sessionId || !playerId || !user) {
+      return undefined;
+    }
+
+    return onSnapshot(
+      doc(db, 'sessions', sessionId, 'members', user.uid),
+      (snap) => {
+        if (!snap.exists()) {
+          return;
+        }
+
+        const member = snap.data() as SessionMemberDoc;
+        if (member.removedAt && member.playerId === playerId) {
+          handleRemoval(member.removedPlayerName ?? member.playerName);
+        }
+      },
+      handleSnapshotError,
+    );
+  }, [playerId, sessionId, user]);
+
+  useEffect(() => {
     if (!sessionId) {
       return undefined;
     }
 
-    return onSnapshot(doc(db, 'sessions', sessionId, 'state', 'public'), (snap) => {
-      setPublicState(snap.exists() ? (snap.data() as SessionPublicState) : null);
-    });
+    return onSnapshot(
+      doc(db, 'sessions', sessionId, 'state', 'public'),
+      (snap) => {
+        setPublicState(snap.exists() ? (snap.data() as SessionPublicState) : null);
+      },
+      handleSnapshotError,
+    );
   }, [sessionId]);
 
   useEffect(() => {
@@ -96,9 +155,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return undefined;
     }
 
-    return onSnapshot(doc(db, 'sessions', sessionId, 'players', playerId), (snap) => {
-      setPlayerRoster(snap.exists() ? (snap.data() as SessionPlayerDoc) : null);
-    });
+    return onSnapshot(
+      doc(db, 'sessions', sessionId, 'players', playerId),
+      (snap) => {
+        setPlayerRoster(snap.exists() ? (snap.data() as SessionPlayerDoc) : null);
+      },
+      handleSnapshotError,
+    );
   }, [playerId, sessionId]);
 
   useEffect(() => {
@@ -106,28 +169,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return undefined;
     }
 
-    return onSnapshot(doc(db, 'sessions', sessionId, 'playerStates', playerId), (snap) => {
-      setPlayerState(snap.exists() ? (snap.data() as PlayerStateDoc) : null);
-    });
+    return onSnapshot(
+      doc(db, 'sessions', sessionId, 'playerStates', playerId),
+      (snap) => {
+        setPlayerState(snap.exists() ? (snap.data() as PlayerStateDoc) : null);
+      },
+      handleSnapshotError,
+    );
   }, [playerId, sessionId]);
 
   const setPlayerIdentity = (sid: string, pid: string) => {
-    setSessionMeta(null);
-    setPublicState(null);
-    setPlayerRoster(null);
-    setPlayerState(null);
+    resetSessionState();
     setIdentity({ sessionId: sid, playerId: pid });
     storage.setItem(STORAGE_KEY, JSON.stringify({ sessionId: sid, playerId: pid }));
-    localStorage.removeItem(STORAGE_KEY);
-  };
-
-  const clearPlayerIdentity = () => {
-    setIdentity({ sessionId: null, playerId: null });
-    setSessionMeta(null);
-    setPublicState(null);
-    setPlayerRoster(null);
-    setPlayerState(null);
-    storage.removeItem(STORAGE_KEY);
     localStorage.removeItem(STORAGE_KEY);
   };
 
@@ -151,6 +205,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       totalMarketDemand: publicState.totalMarketDemand,
       resultsRound: publicState.resultsRound,
       resultsConfirmedCount: publicState.resultsConfirmedCount,
+      roundDeadline: publicState.roundDeadline,
     } satisfies SessionDoc;
   }, [publicState, sessionMeta]);
 

@@ -213,3 +213,34 @@
   color: var(--text-light);
   font-size: 16px;
 }
+
+/* ── Margin utilities ─────────────────────────────────────── */
+.noMb { margin-bottom: 0; }
+.mbSm { margin-bottom: var(--space-sm); }
+.mbMd { margin-bottom: var(--space-md); }
+.mbLg { margin-bottom: var(--space-lg); }
+.mtSm { margin-top: 8px; }
+.mtMd { margin-top: var(--space-md); }
+.noMargin { margin: 0; }
+
+/* ── Text utilities ───────────────────────────────────────── */
+.textCenter { text-align: center; }
+.textLight { color: var(--text-light); }
+
+/* ── Layout utilities ─────────────────────────────────────── */
+.row { display: flex; gap: var(--space-sm); }
+
+/* ── Button modifiers ─────────────────────────────────────── */
+.btnFullWidth { width: 100%; margin-top: 8px; }
+
+/* ── Color indicators ─────────────────────────────────────── */
+.positive { color: var(--color-success); }
+.negative { color: var(--color-danger); }
+
+/* ── Card variants ────────────────────────────────────────── */
+.cardWarning { background: #fff4d6; border-color: #f0b44c; color: #6f4a00; }
+
+/* ── Help / note text patterns ───────────────────────────── */
+.noteText { color: var(--text-light); font-size: 13px; margin: 0 0 8px; }
+.pendingNote { color: var(--text-secondary); margin-top: 12px; text-align: center; font-size: 14px; }
+.progressNote { font-size: 13px; color: var(--text-secondary); margin-top: 8px; }

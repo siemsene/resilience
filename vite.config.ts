@@ -10,6 +10,7 @@ export default defineConfig({
           firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/functions'],
           charts: ['recharts'],
           pdf: ['jspdf', 'html2canvas'],
+          docx: ['docx'],
         },
       },
     },

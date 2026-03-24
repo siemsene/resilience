@@ -45,17 +45,7 @@ export function SessionList({ onSelect }: Props) {
     err instanceof Error ? err.message : fallback
   );
 
-  const statusColor = (status: SessionDoc['status']) => {
-    switch (status) {
-      case 'lobby': return 'var(--color-info)';
-      case 'setup': return 'var(--color-warning)';
-      case 'active': return 'var(--color-success)';
-      case 'completed': return 'var(--text-light)';
-      default: return 'var(--text-light)';
-    }
-  };
-
-  const confirmDelete = (session: SessionDoc) => {
+const confirmDelete = (session: SessionDoc) => {
     setError('');
     setDeleteTarget(session);
   };
@@ -124,7 +114,7 @@ export function SessionList({ onSelect }: Props) {
 
       {(error || deleteTarget) && (
         <div className={`${s.card} ${styles.noticeCard}`}>
-          {error && <p className={s.error} style={{ margin: 0 }}>{error}</p>}
+          {error && <p className={`${s.error} ${s.noMargin}`}>{error}</p>}
           {deleteTarget && (
             <div className={styles.confirmRow}>
               <span>Delete "{deleteTarget.sessionName}" permanently? This cannot be undone.</span>
@@ -169,7 +159,7 @@ export function SessionList({ onSelect }: Props) {
             >
               <div className={styles.cardHeader}>
                 <span className={styles.sessionName}>{session.sessionName}</span>
-                <span className={styles.status} style={{ color: statusColor(session.status) }}>
+                <span className={styles.status} data-status={session.status}>
                   {session.status}
                 </span>
               </div>

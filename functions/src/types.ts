@@ -47,6 +47,8 @@ export interface SessionParams {
   supplierCapacityPriorWeight: number;
   supplierCapacityTargetWeight: number;
   supplierCapacityMinPerPlayer: number;
+  roundTimeLimit: number;
+  disruptionBonusTime: number;
 }
 
 export interface ActiveDisruption {
@@ -121,6 +123,7 @@ export interface SessionPublicState {
   totalMarketDemand: number;
   resultsRound?: number;
   resultsConfirmedCount?: number;
+  roundDeadline?: number;
 }
 
 export interface SessionInstructorState {
@@ -130,6 +133,17 @@ export interface SessionInstructorState {
   resultsRound?: number;
   resultsConfirmedPlayerIds?: string[];
   updatedAt: number;
+}
+
+export interface SessionMemberDoc {
+  playerId: string;
+  playerName: string;
+  joinedAt?: number;
+  reconnectedAt?: number;
+  removedAt?: number;
+  removedByInstructor?: boolean;
+  removedPlayerId?: string;
+  removedPlayerName?: string;
 }
 
 export interface SessionPlayerDoc {
@@ -183,6 +197,7 @@ export interface SessionDoc {
   totalMarketDemand: number;
   resultsRound?: number;
   resultsConfirmedCount?: number;
+  roundDeadline?: number;
 }
 
 export type OrderMap = Record<SupplierKey, number>;

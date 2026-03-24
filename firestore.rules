@@ -18,12 +18,14 @@ service cloud.firestore {
     }
 
     function isSessionMember(sessionId) {
-      return request.auth != null && exists(/databases/$(database)/documents/sessions/$(sessionId)/members/$(request.auth.uid));
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/sessions/$(sessionId)/members/$(request.auth.uid)) &&
+        !('removedAt' in get(/databases/$(database)/documents/sessions/$(sessionId)/members/$(request.auth.uid)).data);
     }
 
     function ownsPlayer(sessionId, playerId) {
       return request.auth != null &&
-        exists(/databases/$(database)/documents/sessions/$(sessionId)/members/$(request.auth.uid)) &&
+        isSessionMember(sessionId) &&
         get(/databases/$(database)/documents/sessions/$(sessionId)/members/$(request.auth.uid)).data.playerId == playerId;
     }
 

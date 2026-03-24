@@ -26,6 +26,15 @@ export const adminListInstructors = onCall(async (request) => {
   return { instructors };
 });
 
+export const adminListSessions = onCall(async (request) => {
+  assertAdmin(request);
+
+  const snap = await db.collection('sessions').orderBy('createdAt', 'desc').limit(100).get();
+  const sessions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  return { sessions };
+});
+
 export const adminUpdateInstructorStatus = onCall(async (request) => {
   assertAdmin(request);
 

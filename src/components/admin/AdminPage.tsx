@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
-import { db, functions } from '../../firebase';
+import { functions } from '../../firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +12,8 @@ export function AdminPage() {
   const navigate = useNavigate();
   const [instructors, setInstructors] = useState<InstructorRecord[]>([]);
   const [sessions, setSessions] = useState<SessionDoc[]>([]);
-  const [error, setError] = useState('');
+  const [instructorError, setInstructorError] = useState('');
+  const [sessionsError, setSessionsError] = useState('');
   const [updatingUid, setUpdatingUid] = useState<string | null>(null);
   const [refreshingSessions, setRefreshingSessions] = useState(false);
 
@@ -30,29 +30,30 @@ export function AdminPage() {
   const fetchSessions = useCallback(async () => {
     setRefreshingSessions(true);
     try {
-      const snap = await getDocs(query(collection(db, 'sessions'), orderBy('createdAt', 'desc'), limit(100)));
-      setSessions(snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as SessionDoc)));
+      const listFn = httpsCallable<undefined, { sessions: SessionDoc[] }>(functions, 'adminListSessions');
+      const result = await listFn();
+      setSessions(result.data.sessions || []);
     } catch (err) {
-      setError(getErrorMessage(err, 'Failed to load sessions'));
+      setSessionsError(getErrorMessage(err, 'Failed to load sessions'));
     } finally {
       setRefreshingSessions(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchInstructors().catch((err) => setError(getErrorMessage(err, 'Failed to load instructor applications')));
-    fetchSessions().catch((err) => setError(getErrorMessage(err, 'Failed to load sessions')));
+    fetchInstructors().catch((err) => setInstructorError(getErrorMessage(err, 'Failed to load instructor applications')));
+    fetchSessions().catch((err) => setSessionsError(getErrorMessage(err, 'Failed to load sessions')));
   }, [fetchInstructors, fetchSessions]);
 
   const updateStatus = async (uid: string, status: InstructorStatus) => {
-    setError('');
+    setInstructorError('');
     setUpdatingUid(uid);
     try {
       const updateFn = httpsCallable<{ uid: string; status: InstructorStatus }, { success: boolean }>(functions, 'adminUpdateInstructorStatus');
       await updateFn({ uid, status });
       await fetchInstructors();
     } catch (err) {
-      setError(getErrorMessage(err, 'Failed to update instructor status'));
+      setInstructorError(getErrorMessage(err, 'Failed to update instructor status'));
     } finally {
       setUpdatingUid(null);
     }
@@ -83,7 +84,7 @@ export function AdminPage() {
           Pending Applications
           {pending.length > 0 && <span className={styles.count}>{pending.length}</span>}
         </h2>
-        {error && <p className={s.error}>{error}</p>}
+        {instructorError && <p className={s.error}>{instructorError}</p>}
         {pending.length === 0 ? (
           <p className={s.emptyState}>No pending applications</p>
         ) : (
@@ -154,6 +155,7 @@ export function AdminPage() {
             {refreshingSessions ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
+        {sessionsError && <p className={s.error}>{sessionsError}</p>}
         {sessions.length === 0 ? (
           <p className={s.emptyState}>No sessions created yet</p>
         ) : (

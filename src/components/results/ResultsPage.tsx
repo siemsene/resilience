@@ -291,12 +291,12 @@ export function ResultsPage() {
   if (playerStates.length === 0) {
     return (
       <div className={s.pageContainer}>
-        <div className={s.card} style={{ textAlign: 'center' }}>
+        <div className={`${s.card} ${s.textCenter}`}>
           <h2>No Results Available</h2>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '8px' }}>
+          <p className={s.progressNote}>
             This session ended before player result data was generated.
           </p>
-          <button className={s.btnPrimary} style={{ marginTop: '16px' }} onClick={() => navigate('/')}>
+          <button className={`${s.btnPrimary} ${s.mtMd}`} onClick={() => navigate('/')}>
             Return Home
           </button>
         </div>

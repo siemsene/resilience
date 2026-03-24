@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions, ADMIN_EMAIL, ensurePlayerAuth } from '../../firebase';
+import { readPlayerRemovalFlash } from '../../utils/playerRemoval';
 import s from '../../styles/shared.module.css';
 import styles from './LandingPage.module.css';
 
@@ -62,6 +63,7 @@ export function LandingPage() {
   const [tab, setTab] = useState<Tab>('player');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [playerNotice, setPlayerNotice] = useState('');
 
   const [sessionCode, setSessionCode] = useState('');
   const [playerName, setPlayerName] = useState('');
@@ -71,6 +73,14 @@ export function LandingPage() {
   const [regPassword, setRegPassword] = useState('');
   const [regName, setRegName] = useState('');
   const [regInstitution, setRegInstitution] = useState('');
+
+  useEffect(() => {
+    const flashMessage = readPlayerRemovalFlash();
+    if (flashMessage) {
+      setPlayerNotice(flashMessage);
+      setTab('player');
+    }
+  }, []);
 
   if (session && sessionId) {
     return <Navigate to="/game" replace />;
@@ -154,6 +164,12 @@ export function LandingPage() {
       </div>
 
       <div className={styles.formContainer}>
+        {playerNotice && (
+          <div className={`${s.card} ${styles.noticeCard}`}>
+            <strong>Session Removed</strong>
+            <p>{playerNotice}</p>
+          </div>
+        )}
         <div className={styles.tabs}>
           <button className={`${styles.tab} ${tab === 'player' ? styles.tabActive : ''}`} onClick={() => { setTab('player'); setError(''); }}>
             Join Game
@@ -170,8 +186,9 @@ export function LandingPage() {
           {tab === 'player' && (
             <form onSubmit={handleJoin}>
               <div className={s.formGroup}>
-                <label className={s.label}>Session Code</label>
+                <label className={s.label} htmlFor="session-code">Session Code</label>
                 <input
+                  id="session-code"
                   className={s.input}
                   value={sessionCode}
                   onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
@@ -181,8 +198,9 @@ export function LandingPage() {
                 />
               </div>
               <div className={s.formGroup}>
-                <label className={s.label}>Your Name</label>
+                <label className={s.label} htmlFor="player-name">Your Name</label>
                 <input
+                  id="player-name"
                   className={s.input}
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
@@ -190,14 +208,14 @@ export function LandingPage() {
                   required
                 />
               </div>
-              <p style={{ color: 'var(--text-light)', fontSize: 13, margin: '0 0 8px' }}>
+              <p className={s.noteText}>
                 Use the same session code and player name to reconnect after the game starts. Before the game starts, each player name must be unique.
               </p>
-              <p style={{ color: 'var(--text-light)', fontSize: 13, margin: '0 0 8px' }}>
+              <p className={s.noteText}>
                 Each browser tab keeps its own player sign-in, so you can test multiple students in parallel from one browser.
               </p>
               {error && <p className={s.error}>{error}</p>}
-              <button type="submit" className={s.btnPrimary} disabled={loading} style={{ width: '100%', marginTop: '8px' }}>
+              <button type="submit" className={`${s.btnPrimary} ${s.btnFullWidth}`} disabled={loading}>
                 {loading ? 'Joining or reconnecting...' : 'Join or Reconnect'}
               </button>
             </form>
@@ -206,19 +224,19 @@ export function LandingPage() {
           {tab === 'login' && (
             <form onSubmit={handleLogin}>
               <div className={s.formGroup}>
-                <label className={s.label}>Email</label>
-                <input className={s.input} type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
+                <label className={s.label} htmlFor="login-email">Email</label>
+                <input id="login-email" className={s.input} type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
               </div>
               <div className={s.formGroup}>
-                <label className={s.label}>Password</label>
-                <input className={s.input} type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
+                <label className={s.label} htmlFor="login-password">Password</label>
+                <input id="login-password" className={s.input} type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
               </div>
               {error && <p className={s.error}>{error}</p>}
-              <button type="submit" className={s.btnPrimary} disabled={loading} style={{ width: '100%', marginTop: '8px' }}>
+              <button type="submit" className={`${s.btnPrimary} ${s.btnFullWidth}`} disabled={loading}>
                 {loading ? 'Signing in...' : 'Sign In'}
               </button>
               {user && instructorStatus === 'pending' && (
-                <p style={{ marginTop: '12px', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '14px' }}>
+                <p className={s.pendingNote}>
                   Your application is pending review.
                 </p>
               )}
@@ -228,26 +246,26 @@ export function LandingPage() {
           {tab === 'register' && (
             <form onSubmit={handleRegister}>
               <div className={s.formGroup}>
-                <label className={s.label}>Full Name</label>
-                <input className={s.input} value={regName} onChange={(e) => setRegName(e.target.value)} required />
+                <label className={s.label} htmlFor="reg-name">Full Name</label>
+                <input id="reg-name" className={s.input} value={regName} onChange={(e) => setRegName(e.target.value)} required />
               </div>
               <div className={s.formGroup}>
-                <label className={s.label}>Institution</label>
-                <input className={s.input} value={regInstitution} onChange={(e) => setRegInstitution(e.target.value)} placeholder="University or Organization" required />
+                <label className={s.label} htmlFor="reg-institution">Institution</label>
+                <input id="reg-institution" className={s.input} value={regInstitution} onChange={(e) => setRegInstitution(e.target.value)} placeholder="University or Organization" required />
               </div>
               <div className={s.formGroup}>
-                <label className={s.label}>Email</label>
-                <input className={s.input} type="email" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} required />
+                <label className={s.label} htmlFor="reg-email">Email</label>
+                <input id="reg-email" className={s.input} type="email" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} required />
               </div>
               <div className={s.formGroup}>
-                <label className={s.label}>Password</label>
-                <input className={s.input} type="password" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} minLength={6} required />
+                <label className={s.label} htmlFor="reg-password">Password</label>
+                <input id="reg-password" className={s.input} type="password" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} minLength={6} required />
               </div>
               {error && <p className={s.error}>{error}</p>}
-              <button type="submit" className={s.btnPrimary} disabled={loading} style={{ width: '100%', marginTop: '8px' }}>
+              <button type="submit" className={`${s.btnPrimary} ${s.btnFullWidth}`} disabled={loading}>
                 {loading ? 'Registering...' : 'Apply as Instructor'}
               </button>
-              <p style={{ marginTop: '12px', color: 'var(--text-light)', fontSize: '13px', textAlign: 'center' }}>
+              <p className={`${s.noteText} ${s.textCenter}`}>
                 Applications are reviewed by an administrator.
               </p>
             </form>
@@ -256,13 +274,13 @@ export function LandingPage() {
       </div>
 
       {user && !user.isAnonymous && (
-        <div style={{ textAlign: 'center', marginTop: '16px' }}>
+        <div className={styles.authActions}>
           {dashboardPath && (
-            <button className={s.btnPrimary} onClick={() => navigate(dashboardPath)} style={{ fontSize: '13px', marginRight: '8px' }}>
+            <button type="button" className={`${s.btnPrimary} ${styles.authDashboardBtn}`} onClick={() => navigate(dashboardPath)}>
               {dashboardLabel}
             </button>
           )}
-          <button className={s.btnSecondary} onClick={signOut} style={{ fontSize: '13px' }}>
+          <button type="button" className={`${s.btnSecondary} ${styles.authSignOutBtn}`} onClick={signOut}>
             Sign Out ({user.email})
           </button>
         </div>

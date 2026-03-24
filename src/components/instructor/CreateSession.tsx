@@ -16,7 +16,7 @@ export function CreateSession({ onCreated, onCancel }: Props) {
   const [sessionName, setSessionName] = useState('');
   const [params, setParams] = useState<SessionParams>({ ...DEFAULT_PARAMS });
   const [schedule, setSchedule] = useState<DisruptionSchedule>(() =>
-    generateDisruptionSchedule(DEFAULT_PARAMS.totalRounds, DEFAULT_PARAMS.disruptionsPerCountry)
+    generateDisruptionSchedule(DEFAULT_PARAMS.totalRounds, DEFAULT_PARAMS.disruptionsPerCountry, DEFAULT_PARAMS.disruptionDuration)
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,7 +36,7 @@ export function CreateSession({ onCreated, onCancel }: Props) {
   };
 
   const regenerateSchedule = () => {
-    setSchedule(generateDisruptionSchedule(params.totalRounds, params.disruptionsPerCountry));
+    setSchedule(generateDisruptionSchedule(params.totalRounds, params.disruptionsPerCountry, params.disruptionDuration));
   };
 
   const getErrorMessage = (err: unknown, fallback: string) => {
@@ -71,12 +71,13 @@ export function CreateSession({ onCreated, onCancel }: Props) {
 
   return (
     <form onSubmit={handleCreate}>
-      <h2 style={{ marginBottom: 'var(--space-lg)' }}>Create New Session</h2>
+      <h2 className={s.mbLg}>Create New Session</h2>
 
-      <div className={s.card} style={{ marginBottom: 'var(--space-lg)' }}>
+      <div className={`${s.card} ${s.mbLg}`}>
         <div className={s.formGroup}>
-          <label className={s.label}>Session Name</label>
+          <label className={s.label} htmlFor="session-name">Session Name</label>
           <input
+            id="session-name"
             className={s.input}
             value={sessionName}
             onChange={(e) => setSessionName(e.target.value)}
@@ -87,64 +88,73 @@ export function CreateSession({ onCreated, onCancel }: Props) {
 
         <div className={styles.paramGrid}>
           <div className={s.formGroup}>
-            <label className={s.label}>Total Rounds</label>
-            <input className={s.input} type="number" value={params.totalRounds} onChange={(e) => updateParam('totalRounds', parseInt(e.target.value) || 30)} min={5} max={100} />
+            <label className={s.label} htmlFor="total-rounds">Total Rounds</label>
+            <input id="total-rounds" className={s.input} type="number" value={params.totalRounds} onChange={(e) => updateParam('totalRounds', parseInt(e.target.value) || 30)} min={5} max={100} />
           </div>
           <div className={s.formGroup}>
-            <label className={s.label}>Starting Cash ($)</label>
-            <input className={s.input} type="number" value={params.startingCash} onChange={(e) => updateParam('startingCash', parseInt(e.target.value) || 0)} />
+            <label className={s.label} htmlFor="starting-cash">Starting Cash ($)</label>
+            <input id="starting-cash" className={s.input} type="number" value={params.startingCash} onChange={(e) => updateParam('startingCash', parseInt(e.target.value) || 0)} />
           </div>
           <div className={s.formGroup}>
-            <label className={s.label}>Starting Demand</label>
-            <input className={s.input} type="number" value={params.startingDemand} onChange={(e) => updateParam('startingDemand', parseInt(e.target.value) || 0)} />
+            <label className={s.label} htmlFor="starting-demand">Starting Demand</label>
+            <input id="starting-demand" className={s.input} type="number" value={params.startingDemand} onChange={(e) => updateParam('startingDemand', parseInt(e.target.value) || 0)} />
           </div>
           <div className={s.formGroup}>
-            <label className={s.label}>Selling Price ($)</label>
-            <input className={s.input} type="number" value={params.sellingPrice} onChange={(e) => updateParam('sellingPrice', parseInt(e.target.value) || 0)} />
+            <label className={s.label} htmlFor="selling-price">Selling Price ($)</label>
+            <input id="selling-price" className={s.input} type="number" value={params.sellingPrice} onChange={(e) => updateParam('sellingPrice', parseInt(e.target.value) || 0)} />
           </div>
           <div className={s.formGroup}>
-            <label className={s.label}>Holding Cost / Unit ($)</label>
-            <input className={s.input} type="number" value={params.holdingCostPerUnit} onChange={(e) => updateParam('holdingCostPerUnit', parseFloat(e.target.value) || 0)} />
+            <label className={s.label} htmlFor="holding-cost">Holding Cost / Unit ($)</label>
+            <input id="holding-cost" className={s.input} type="number" value={params.holdingCostPerUnit} onChange={(e) => updateParam('holdingCostPerUnit', parseFloat(e.target.value) || 0)} />
           </div>
           <div className={s.formGroup}>
-            <label className={s.label}>Loyalty %</label>
-            <input className={s.input} type="number" value={params.loyaltyPercent * 100} onChange={(e) => updateParam('loyaltyPercent', (parseFloat(e.target.value) || 0) / 100)} min={0} max={100} step={5} />
+            <label className={s.label} htmlFor="loyalty-pct">Loyalty %</label>
+            <input id="loyalty-pct" className={s.input} type="number" value={params.loyaltyPercent * 100} onChange={(e) => updateParam('loyaltyPercent', (parseFloat(e.target.value) || 0) / 100)} min={0} max={100} step={5} />
+          </div>
+          <div className={s.formGroup}>
+            <label className={s.label} htmlFor="round-timer">Round Time Limit (sec)</label>
+            <input id="round-timer" className={s.input} type="number" value={params.roundTimeLimit} onChange={(e) => updateParam('roundTimeLimit', parseInt(e.target.value) || 120)} min={30} max={600} step={30} />
+          </div>
+          <div className={s.formGroup}>
+            <label className={s.label} htmlFor="disruption-bonus">Disruption Bonus Time (sec)</label>
+            <input id="disruption-bonus" className={s.input} type="number" value={params.disruptionBonusTime} onChange={(e) => updateParam('disruptionBonusTime', parseInt(e.target.value) || 0)} min={0} max={300} step={15} />
           </div>
         </div>
       </div>
 
-      <div className={s.card} style={{ marginBottom: 'var(--space-lg)' }}>
-        <h3 style={{ marginBottom: 'var(--space-md)' }}>Supplier Base Costs</h3>
+      <div className={`${s.card} ${s.mbLg}`}>
+        <h3 className={s.mbMd}>Supplier Base Costs</h3>
         <div className={styles.paramGrid}>
           {(['china', 'mexico', 'us'] as Country[]).map((country) => (
             <div key={country} className={s.formGroup}>
-              <label className={s.label}>{country === 'us' ? 'US' : country.charAt(0).toUpperCase() + country.slice(1)} Base Cost ($)</label>
-              <input className={s.input} type="number" value={params.baseCost[country]} onChange={(e) => updateParam('baseCost', { ...params.baseCost, [country]: parseFloat(e.target.value) || 0 })} />
+              <label className={s.label} htmlFor={`base-cost-${country}`}>{country === 'us' ? 'US' : country.charAt(0).toUpperCase() + country.slice(1)} Base Cost ($)</label>
+              <input id={`base-cost-${country}`} className={s.input} type="number" value={params.baseCost[country]} onChange={(e) => updateParam('baseCost', { ...params.baseCost, [country]: parseFloat(e.target.value) || 0 })} />
             </div>
           ))}
           <div className={s.formGroup}>
-            <label className={s.label}>Unreliable Cost Modifier</label>
-            <input className={s.input} type="number" value={params.unreliableCostModifier} onChange={(e) => updateParam('unreliableCostModifier', parseFloat(e.target.value) || 0)} step={0.05} />
+            <label className={s.label} htmlFor="unreliable-cost">Unreliable Cost Modifier</label>
+            <input id="unreliable-cost" className={s.input} type="number" value={params.unreliableCostModifier} onChange={(e) => updateParam('unreliableCostModifier', parseFloat(e.target.value) || 0)} step={0.05} />
           </div>
           <div className={s.formGroup}>
-            <label className={s.label}>Unreliable Cancel Chance</label>
-            <input className={s.input} type="number" value={params.unreliableCancellationChance * 100} onChange={(e) => updateParam('unreliableCancellationChance', (parseFloat(e.target.value) || 0) / 100)} min={0} max={100} step={5} />
+            <label className={s.label} htmlFor="unreliable-cancel">Unreliable Cancel Chance</label>
+            <input id="unreliable-cancel" className={s.input} type="number" value={params.unreliableCancellationChance * 100} onChange={(e) => updateParam('unreliableCancellationChance', (parseFloat(e.target.value) || 0) / 100)} min={0} max={100} step={5} />
           </div>
         </div>
       </div>
 
-      <div className={s.card} style={{ marginBottom: 'var(--space-lg)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+      <div className={`${s.card} ${s.mbLg}`}>
+        <div className={styles.sectionHeader}>
           <h3>Disruption Schedule</h3>
           <button type="button" className={`${s.btnSecondary} ${s.btnSmall}`} onClick={regenerateSchedule}>
             Randomize
           </button>
         </div>
-        <div className={styles.paramGrid} style={{ marginBottom: 'var(--space-md)' }}>
+        <div className={`${styles.paramGrid} ${s.mbMd}`}>
           {(['china', 'mexico', 'us'] as Country[]).map((country) => (
             <div key={country} className={s.formGroup}>
-              <label className={s.label}>{country === 'us' ? 'US' : country.charAt(0).toUpperCase() + country.slice(1)} Disruptions</label>
+              <label className={s.label} htmlFor={`disruptions-${country}`}>{country === 'us' ? 'US' : country.charAt(0).toUpperCase() + country.slice(1)} Disruptions</label>
               <input
+                id={`disruptions-${country}`}
                 className={s.input}
                 type="number"
                 value={params.disruptionsPerCountry[country]}
@@ -155,40 +165,40 @@ export function CreateSession({ onCreated, onCancel }: Props) {
             </div>
           ))}
           <div className={s.formGroup}>
-            <label className={s.label}>Duration (rounds)</label>
-            <input className={s.input} type="number" value={params.disruptionDuration} onChange={(e) => updateParam('disruptionDuration', parseInt(e.target.value) || 1)} min={1} max={10} />
+            <label className={s.label} htmlFor="disruption-duration">Duration (rounds)</label>
+            <input id="disruption-duration" className={s.input} type="number" value={params.disruptionDuration} onChange={(e) => updateParam('disruptionDuration', parseInt(e.target.value) || 1)} min={1} max={10} />
           </div>
         </div>
         <DisruptionScheduler totalRounds={params.totalRounds} schedule={schedule} duration={params.disruptionDuration} onChange={setSchedule} />
       </div>
 
-      <button type="button" className={s.btnSecondary} onClick={() => setShowAdvanced(!showAdvanced)} style={{ marginBottom: 'var(--space-md)' }}>
+      <button type="button" className={`${s.btnSecondary} ${s.mbMd}`} onClick={() => setShowAdvanced(!showAdvanced)}>
         {showAdvanced ? 'Hide' : 'Show'} Advanced Settings
       </button>
 
       {showAdvanced && (
-        <div className={s.card} style={{ marginBottom: 'var(--space-lg)' }}>
-          <h3 style={{ marginBottom: 'var(--space-md)' }}>Advanced Parameters</h3>
+        <div className={`${s.card} ${s.mbLg}`}>
+          <h3 className={s.mbMd}>Advanced Parameters</h3>
           <div className={styles.paramGrid}>
             <div className={s.formGroup}>
-              <label className={s.label}>Minimum Order</label>
-              <input className={s.input} type="number" value={params.minimumOrder} onChange={(e) => updateParam('minimumOrder', parseInt(e.target.value) || 0)} min={0} step={10} />
+              <label className={s.label} htmlFor="min-order">Minimum Order</label>
+              <input id="min-order" className={s.input} type="number" value={params.minimumOrder} onChange={(e) => updateParam('minimumOrder', parseInt(e.target.value) || 0)} min={0} step={10} />
             </div>
             <div className={s.formGroup}>
-              <label className={s.label}>Capacity Target (%)</label>
-              <input className={s.input} type="number" value={params.supplierCapacityTargetMultiplier * 100} onChange={(e) => updateParam('supplierCapacityTargetMultiplier', (parseFloat(e.target.value) || 0) / 100)} min={0} step={5} />
+              <label className={s.label} htmlFor="capacity-target">Capacity Target (%)</label>
+              <input id="capacity-target" className={s.input} type="number" value={params.supplierCapacityTargetMultiplier * 100} onChange={(e) => updateParam('supplierCapacityTargetMultiplier', (parseFloat(e.target.value) || 0) / 100)} min={0} step={5} />
             </div>
             <div className={s.formGroup}>
-              <label className={s.label}>Target Capacity Weight (%)</label>
-              <input className={s.input} type="number" value={params.supplierCapacityTargetWeight * 100} onChange={(e) => updateCapacityTargetWeight((parseFloat(e.target.value) || 0) / 100)} min={0} max={100} step={5} />
+              <label className={s.label} htmlFor="capacity-target-weight">Target Capacity Weight (%)</label>
+              <input id="capacity-target-weight" className={s.input} type="number" value={params.supplierCapacityTargetWeight * 100} onChange={(e) => updateCapacityTargetWeight((parseFloat(e.target.value) || 0) / 100)} min={0} max={100} step={5} />
             </div>
             <div className={s.formGroup}>
-              <label className={s.label}>Capacity Floor / Player</label>
-              <input className={s.input} type="number" value={params.supplierCapacityMinPerPlayer} onChange={(e) => updateParam('supplierCapacityMinPerPlayer', parseInt(e.target.value) || 0)} min={0} step={10} />
+              <label className={s.label} htmlFor="capacity-floor">Capacity Floor / Player</label>
+              <input id="capacity-floor" className={s.input} type="number" value={params.supplierCapacityMinPerPlayer} onChange={(e) => updateParam('supplierCapacityMinPerPlayer', parseInt(e.target.value) || 0)} min={0} step={10} />
             </div>
             <div className={s.formGroup}>
               <label className={s.label}>Supplier Capacity Rules</label>
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+              <p className={styles.descText}>
                 Round 1 supplier capacity starts at {Math.round(params.supplierCapacityTargetMultiplier * 100)}% of total initial setup orders.
                 <br />
                 Future target capacity becomes {Math.round(params.supplierCapacityTargetMultiplier * 100)}% of the prior round's submitted orders.
@@ -201,7 +211,7 @@ export function CreateSession({ onCreated, onCancel }: Props) {
             </div>
             <div className={s.formGroup}>
               <label className={s.label}>Supplier Order Limits</label>
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+              <p className={styles.descText}>
                 Any non-zero order must be at least {params.minimumOrder} units.
                 <br />
                 New suppliers start at {Math.round(params.maxOrderIncreasePercent * 100)} units, and supplier caps never drop below that floor.
@@ -215,9 +225,9 @@ export function CreateSession({ onCreated, onCancel }: Props) {
         </div>
       )}
 
-      {error && <p className={s.error} style={{ marginBottom: 'var(--space-md)' }}>{error}</p>}
+      {error && <p className={`${s.error} ${s.mbMd}`}>{error}</p>}
 
-      <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+      <div className={s.row}>
         <button type="submit" className={s.btnPrimary} disabled={loading}>
           {loading ? 'Creating...' : 'Create Session'}
         </button>

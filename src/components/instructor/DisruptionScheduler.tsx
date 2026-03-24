@@ -8,12 +8,6 @@ interface Props {
   onChange: (schedule: DisruptionSchedule) => void;
 }
 
-const COUNTRY_COLORS: Record<Country, string> = {
-  china: 'var(--china-primary)',
-  mexico: 'var(--mexico-primary)',
-  us: 'var(--us-primary)',
-};
-
 const COUNTRY_LABELS: Record<Country, string> = {
   china: 'China',
   mexico: 'Mexico',
@@ -48,8 +42,8 @@ export function DisruptionScheduler({ totalRounds, schedule, duration, onChange 
       </div>
 
       {(['china', 'mexico', 'us'] as Country[]).map(country => (
-        <div key={country} className={styles.row}>
-          <div className={styles.label} style={{ color: COUNTRY_COLORS[country] }}>
+        <div key={country} className={styles.row} data-country={country}>
+          <div className={styles.label}>
             {COUNTRY_LABELS[country]}
           </div>
           <div className={styles.timeline}>
@@ -63,11 +57,7 @@ export function DisruptionScheduler({ totalRounds, schedule, duration, onChange 
                 <button
                   key={r}
                   type="button"
-                  className={`${styles.cell} ${isStart ? styles.cellStart : ''} ${isDisrupted ? styles.cellActive : ''}`}
-                  style={{
-                    backgroundColor: isDisrupted ? COUNTRY_COLORS[country] : undefined,
-                    opacity: isDisrupted && !isStart ? 0.5 : undefined,
-                  }}
+                  className={`${styles.cell} ${isStart ? styles.cellStart : ''} ${isDisrupted ? styles.cellActive : ''} ${isDisrupted && !isStart ? styles.cellDimmed : ''}`}
                   onClick={() => toggleRound(country, r)}
                   title={`Round ${r}${isStart ? ' (disruption start)' : isDisrupted ? ' (disrupted)' : ''}`}
                 />

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, doc, getDocs, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../../firebase';
@@ -13,9 +13,19 @@ interface Props {
   onDeleted: () => void;
 }
 
-type ConfirmAction = 'end' | 'delete' | null;
+type ConfirmAction =
+  | { type: 'end' }
+  | { type: 'delete' }
+  | { type: 'remove-player'; player: SessionPlayerDoc }
+  | null;
 
 const PAGE_SIZE = 20;
+
+function ProgressFill({ pct, className }: { pct: number; className: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (ref.current) ref.current.style.width = `${pct}%`; }, [pct]);
+  return <div ref={ref} className={className} />;
+}
 
 export function SessionView({ sessionId, onDeleted }: Props) {
   const navigate = useNavigate();
@@ -110,6 +120,7 @@ export function SessionView({ sessionId, onDeleted }: Props) {
   const supplierCapacities = instructorState?.supplierCapacities;
   const capacityRound = supplierCapacities ? supplierCapacities[SUPPLIER_KEYS[0]]?.capacityRound : null;
   const submissionPct = session?.playerCount ? (session.submittedCount / session.playerCount) * 100 : 0;
+  const canRemovePlayers = session?.status === 'lobby' || session?.status === 'setup' || session?.status === 'active';
 
   useEffect(() => {
     setPage(1);
@@ -126,6 +137,23 @@ export function SessionView({ sessionId, onDeleted }: Props) {
       }
     } catch (err) {
       setError(getErrorMessage(err, `Failed to ${callableName}`));
+    } finally {
+      setActionLoading(false);
+      setConfirmAction(null);
+    }
+  };
+
+  const runRemovePlayer = async (player: SessionPlayerDoc) => {
+    setError('');
+    setActionLoading(true);
+    try {
+      const callable = httpsCallable<
+        { sessionId: string; playerId: string },
+        { success: boolean }
+      >(functions, 'removePlayer');
+      await callable({ sessionId, playerId: player.playerId });
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to remove player'));
     } finally {
       setActionLoading(false);
       setConfirmAction(null);
@@ -165,11 +193,11 @@ export function SessionView({ sessionId, onDeleted }: Props) {
             </button>
           )}
           {(session.status === 'lobby' || session.status === 'setup' || session.status === 'active') && (
-            <button className={s.btnDanger} onClick={() => setConfirmAction('end')} disabled={actionLoading}>
+            <button className={s.btnDanger} onClick={() => setConfirmAction({ type: 'end' })} disabled={actionLoading}>
               End Session Early
             </button>
           )}
-          <button className={s.btnDanger} onClick={() => setConfirmAction('delete')} disabled={actionLoading}>
+          <button className={s.btnDanger} onClick={() => setConfirmAction({ type: 'delete' })} disabled={actionLoading}>
             Delete Session
           </button>
         </div>
@@ -177,8 +205,8 @@ export function SessionView({ sessionId, onDeleted }: Props) {
 
       {(error || confirmAction) && (
         <div className={`${s.card} ${styles.noticeCard}`}>
-          {error && <p className={s.error} style={{ margin: 0 }}>{error}</p>}
-          {confirmAction === 'end' && (
+          {error && <p className={`${s.error} ${s.noMargin}`}>{error}</p>}
+          {confirmAction?.type === 'end' && (
             <div className={styles.confirmRow}>
               <span>End this session now and send players to results?</span>
               <div className={styles.confirmActions}>
@@ -187,11 +215,24 @@ export function SessionView({ sessionId, onDeleted }: Props) {
               </div>
             </div>
           )}
-          {confirmAction === 'delete' && (
+          {confirmAction?.type === 'delete' && (
             <div className={styles.confirmRow}>
               <span>Delete this session permanently? This cannot be undone.</span>
               <div className={styles.confirmActions}>
                 <button className={s.btnDanger} onClick={() => runAction('deleteSession')} disabled={actionLoading}>Delete</button>
+                <button className={s.btnSecondary} onClick={() => setConfirmAction(null)} disabled={actionLoading}>Cancel</button>
+              </div>
+            </div>
+          )}
+          {confirmAction?.type === 'remove-player' && (
+            <div className={styles.confirmRow}>
+              <span>
+                {session.status === 'lobby' ? 'Remove' : 'Kick'} <strong>{confirmAction.player.playerName}</strong> from this session?
+              </span>
+              <div className={styles.confirmActions}>
+                <button className={s.btnDanger} onClick={() => runRemovePlayer(confirmAction.player)} disabled={actionLoading}>
+                  {actionLoading ? 'Removing...' : session.status === 'lobby' ? 'Remove Player' : 'Kick Player'}
+                </button>
                 <button className={s.btnSecondary} onClick={() => setConfirmAction(null)} disabled={actionLoading}>Cancel</button>
               </div>
             </div>
@@ -216,8 +257,19 @@ export function SessionView({ sessionId, onDeleted }: Props) {
           <div className={styles.playerGrid}>
             {players.map((player) => (
               <div key={player.playerId} className={`${s.card} ${styles.playerCard}`}>
-                <span className={styles.playerName}>{player.playerName}</span>
-                <span className={styles.playerStatus}>{player.connected ? 'Connected' : 'Disconnected'}</span>
+                <div className={styles.playerSummary}>
+                  <span className={styles.playerName}>{player.playerName}</span>
+                  <span className={styles.playerStatus}>{player.connected ? 'Connected' : 'Disconnected'}</span>
+                </div>
+                {canRemovePlayers && (
+                  <button
+                    className={`${s.btnDanger} ${s.btnSmall}`}
+                    onClick={() => setConfirmAction({ type: 'remove-player', player })}
+                    disabled={actionLoading}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
             ))}
             {players.length === 0 && !playersLoading && (
@@ -235,6 +287,7 @@ export function SessionView({ sessionId, onDeleted }: Props) {
                   <th>Inventory</th>
                   <th>Demand</th>
                   <th>Status</th>
+                  {canRemovePlayers && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -250,10 +303,21 @@ export function SessionView({ sessionId, onDeleted }: Props) {
                         ? <span className={s.badgeApproved}>Submitted</span>
                         : <span className={s.badgePending}>Waiting</span>}
                     </td>
+                    {canRemovePlayers && (
+                      <td>
+                        <button
+                          className={`${s.btnDanger} ${s.btnSmall}`}
+                          onClick={() => setConfirmAction({ type: 'remove-player', player })}
+                          disabled={actionLoading}
+                        >
+                          {session.status === 'lobby' ? 'Remove' : 'Kick'}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {!playersLoading && pagePlayers.length === 0 && (
-                  <tr><td colSpan={6} className={s.emptyState}>No players match the current filters.</td></tr>
+                  <tr><td colSpan={canRemovePlayers ? 7 : 6} className={s.emptyState}>No players match the current filters.</td></tr>
                 )}
               </tbody>
             </table>
@@ -310,7 +374,7 @@ export function SessionView({ sessionId, onDeleted }: Props) {
                 </div>
               ) : null
             ))}
-            {!Object.values(session.activeDisruptions || {}).some(Boolean) && <p style={{ color: 'var(--text-light)' }}>No active disruptions</p>}
+            {!Object.values(session.activeDisruptions || {}).some(Boolean) && <p className={s.textLight}>No active disruptions</p>}
           </div>
         </div>
       )}
@@ -319,9 +383,9 @@ export function SessionView({ sessionId, onDeleted }: Props) {
         <div className={styles.section}>
           <h3>Submission Progress</h3>
           <div className={styles.progressBar}>
-            <div className={styles.progressFill} style={{ width: `${submissionPct}%` }} />
+            <ProgressFill pct={submissionPct} className={styles.progressFill} />
           </div>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '8px' }}>
+          <p className={styles.progressNote}>
             {session.submittedCount} / {session.playerCount} players submitted
           </p>
         </div>
@@ -331,14 +395,12 @@ export function SessionView({ sessionId, onDeleted }: Props) {
         <div className={styles.section}>
           <h3>Results Confirmation</h3>
           <div className={styles.progressBar}>
-            <div
+            <ProgressFill
+              pct={session.playerCount ? (((session.resultsConfirmedCount || 0) / session.playerCount) * 100) : 0}
               className={styles.progressFill}
-              style={{
-                width: `${session.playerCount ? (((session.resultsConfirmedCount || 0) / session.playerCount) * 100) : 0}%`,
-              }}
             />
           </div>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '8px' }}>
+          <p className={styles.progressNote}>
             {(session.resultsConfirmedCount || 0).toLocaleString()} / {session.playerCount.toLocaleString()} players confirmed round {session.resultsRound ?? session.currentRound - 1}
           </p>
         </div>

@@ -82,6 +82,8 @@ export interface SessionParams {
   supplierCapacityPriorWeight: number;
   supplierCapacityTargetWeight: number;
   supplierCapacityMinPerPlayer: number;
+  roundTimeLimit: number;
+  disruptionBonusTime: number;
 }
 
 export const DEFAULT_PARAMS: SessionParams = {
@@ -109,6 +111,8 @@ export const DEFAULT_PARAMS: SessionParams = {
   supplierCapacityPriorWeight: 0.8,
   supplierCapacityTargetWeight: 0.2,
   supplierCapacityMinPerPlayer: 100,
+  roundTimeLimit: 120,
+  disruptionBonusTime: 60,
 };
 
 export interface DisruptionSchedule {
@@ -149,6 +153,7 @@ export interface SessionDoc {
   totalMarketDemand: number;
   resultsRound?: number;
   resultsConfirmedCount?: number;
+  roundDeadline?: number;
 }
 
 export interface SessionPublicState {
@@ -162,6 +167,7 @@ export interface SessionPublicState {
   totalMarketDemand: number;
   resultsRound?: number;
   resultsConfirmedCount?: number;
+  roundDeadline?: number;
 }
 
 export interface SessionInstructorState {
@@ -171,6 +177,17 @@ export interface SessionInstructorState {
   resultsRound?: number;
   resultsConfirmedPlayerIds?: string[];
   updatedAt: number;
+}
+
+export interface SessionMemberDoc {
+  playerId: string;
+  playerName: string;
+  joinedAt?: number;
+  reconnectedAt?: number;
+  removedAt?: number;
+  removedByInstructor?: boolean;
+  removedPlayerId?: string;
+  removedPlayerName?: string;
 }
 
 export interface SessionPlayerDoc {

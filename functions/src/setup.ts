@@ -59,6 +59,12 @@ export async function finalizeSetupPhase(sessionId: string) {
     1,
   );
 
+  const hasRound1Disruption = (['china', 'mexico', 'us'] as const).some(
+    c => session.disruptionSchedule[c]?.includes(1),
+  );
+  const timerBonus = hasRound1Disruption ? (session.params.disruptionBonusTime ?? 60) : 0;
+  const roundDeadline = Date.now() + ((session.params.roundTimeLimit ?? 120) + timerBonus) * 1000;
+
   const batch = db.batch();
   const deleteField = admin.firestore.FieldValue.delete();
   batch.update(sessionRef(sessionId), {
@@ -69,6 +75,7 @@ export async function finalizeSetupPhase(sessionId: string) {
     activeDisruptions,
     resultsRound: deleteField,
     resultsConfirmedCount: deleteField,
+    roundDeadline,
   });
   batch.set(sessionPublicStateRef(sessionId), {
     sessionId,
@@ -81,6 +88,7 @@ export async function finalizeSetupPhase(sessionId: string) {
     activeDisruptions,
     resultsRound: deleteField,
     resultsConfirmedCount: deleteField,
+    roundDeadline,
   }, { merge: true });
   batch.set(sessionInstructorStateRef(sessionId), {
     sessionId,

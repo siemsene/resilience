@@ -28,9 +28,6 @@ export const submitOrders = onCall(async (request) => {
   if (session.status !== 'active') {
     throw new HttpsError('failed-precondition', 'Game is not active');
   }
-  if (session.currentPhase !== 'ordering') {
-    throw new HttpsError('failed-precondition', 'Not in ordering phase');
-  }
 
   const playerRosterSnap = await sessionPlayerRef(sessionId, playerId).get();
   if (!playerRosterSnap.exists) {
@@ -44,6 +41,13 @@ export const submitOrders = onCall(async (request) => {
   }
 
   const playerState = playerStateSnap.data() as PlayerStateDoc;
+  const canOrderInResultsPhase = session.currentPhase === 'results'
+    && session.resultsRound != null
+    && playerState.lastConfirmedResultsRound === session.resultsRound;
+  if (session.currentPhase !== 'ordering' && !canOrderInResultsPhase) {
+    throw new HttpsError('failed-precondition', 'Not in ordering phase');
+  }
+
   const orderMap = orders as OrderMap;
   const minimumOrder = session.params.minimumOrder ?? 100;
 
@@ -90,7 +94,10 @@ export const submitOrders = onCall(async (request) => {
     if (freshSession.status !== 'active') {
       throw new HttpsError('failed-precondition', 'Game is not active');
     }
-    if (freshSession.currentPhase !== 'ordering') {
+    const freshCanOrderInResults = freshSession.currentPhase === 'results'
+      && freshSession.resultsRound != null
+      && freshPlayerState.lastConfirmedResultsRound === freshSession.resultsRound;
+    if (freshSession.currentPhase !== 'ordering' && !freshCanOrderInResults) {
       throw new HttpsError('failed-precondition', 'Not in ordering phase');
     }
     if (freshPlayerState.lastSubmittedRound === freshSession.currentRound) {
@@ -136,9 +143,90 @@ export const submitOrders = onCall(async (request) => {
     return { success: true, roundProcessed: shouldProcessRound };
   });
 
+  if (!shouldProcessRound) {
+    const freshSnap = await sessionDocRef.get();
+    const freshSession = { id: freshSnap.id, ...freshSnap.data() } as SessionDoc;
+    const deadline = freshSession.roundDeadline ?? 0;
+    if (deadline > 0 && Date.now() >= deadline) {
+      shouldProcessRound = await autoSubmitRemainingPlayers(sessionId, freshSession.currentRound);
+    }
+  }
+
   if (shouldProcessRound) {
     await executeRoundProcessing(sessionId);
   }
 
   return result;
 });
+
+async function autoSubmitRemainingPlayers(sessionId: string, round: number): Promise<boolean> {
+  const sessionDocRef = sessionRef(sessionId);
+
+  return db.runTransaction(async (transaction) => {
+    const [sessionSnap, instructorStateSnap] = await Promise.all([
+      transaction.get(sessionDocRef),
+      transaction.get(sessionInstructorStateRef(sessionId)),
+    ]);
+
+    if (!sessionSnap.exists) return false;
+
+    const session = { id: sessionSnap.id, ...sessionSnap.data() } as SessionDoc;
+    if (session.currentPhase === 'processing' || session.currentRound !== round) {
+      return false;
+    }
+
+    const submittedIds = new Set((instructorStateSnap.data()?.submittedPlayerIds || []) as string[]);
+    const playerStatesSnap = await transaction.get(
+      sessionDocRef.collection('playerStates'),
+    );
+
+    const unsubmitted: { playerId: string; state: PlayerStateDoc }[] = [];
+    for (const doc of playerStatesSnap.docs) {
+      if (!submittedIds.has(doc.id)) {
+        unsubmitted.push({ playerId: doc.id, state: doc.data() as PlayerStateDoc });
+      }
+    }
+
+    if (unsubmitted.length === 0) return false;
+
+    const allSubmittedIds = [...submittedIds];
+    for (const { playerId, state } of unsubmitted) {
+      const orders: Record<string, number> = {};
+      for (const key of SUPPLIER_KEYS) {
+        const country = SUPPLIER_COUNTRY[key];
+        if (session.activeDisruptions[country]) {
+          orders[key] = 0;
+        } else {
+          orders[key] = state.suppliers?.[key]?.lastOrder ?? 0;
+        }
+      }
+
+      const orderRef = sessionDocRef
+        .collection('rounds').doc(String(round))
+        .collection('orders').doc(playerId);
+      transaction.set(orderRef, { orders, submittedAt: Date.now(), autoSubmitted: true });
+
+      const playerStateRef = sessionDocRef.collection('playerStates').doc(playerId);
+      transaction.set(playerStateRef, { lastSubmittedRound: round }, { merge: true });
+
+      allSubmittedIds.push(playerId);
+    }
+
+    transaction.update(sessionDocRef, {
+      submittedCount: allSubmittedIds.length,
+      currentPhase: 'processing',
+    });
+    transaction.set(sessionPublicStateRef(sessionId), {
+      sessionId,
+      submittedCount: allSubmittedIds.length,
+      currentPhase: 'processing',
+    }, { merge: true });
+    transaction.set(sessionInstructorStateRef(sessionId), {
+      sessionId,
+      submittedPlayerIds: allSubmittedIds,
+      updatedAt: Date.now(),
+    }, { merge: true });
+
+    return true;
+  });
+}

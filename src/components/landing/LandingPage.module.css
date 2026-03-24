@@ -30,6 +30,17 @@
   max-width: 420px;
 }
 
+.noticeCard {
+  margin-bottom: var(--space-md);
+  border-color: #f0b44c !important;
+  background: #fff4d6 !important;
+}
+
+.noticeCard p {
+  margin: 8px 0 0;
+  color: #6f4a00;
+}
+
 .tabs {
   display: flex;
   gap: 2px;
@@ -58,4 +69,18 @@
   background: var(--bg-card);
   color: var(--us-primary);
   box-shadow: inset 0 -2px 0 var(--us-primary);
+}
+
+.authActions {
+  text-align: center;
+  margin-top: 16px;
+}
+
+.authDashboardBtn {
+  font-size: 13px;
+  margin-right: 8px;
+}
+
+.authSignOutBtn {
+  font-size: 13px;
 }

@@ -5,6 +5,7 @@ import { PlayerLobby } from './PlayerLobby';
 import { InitialSetup } from './InitialSetup';
 import { PlayerGameView } from './PlayerGameView';
 import s from '../../styles/shared.module.css';
+import styles from './GamePage.module.css';
 
 export function GamePage() {
   const { session, playerState, playerName, sessionId, playerId, isOffline, loading, clearPlayerIdentity } = useGame();
@@ -13,16 +14,8 @@ export function GamePage() {
   const renderPlayerShell = (content: ReactNode) => (
     <>
       {isOffline && (
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: 'var(--space-md) var(--space-md) 0' }}>
-          <div
-            className={s.card}
-            style={{
-              marginBottom: 'var(--space-md)',
-              background: '#fff4d6',
-              borderColor: '#f0b44c',
-              color: '#6f4a00',
-            }}
-          >
+        <div className={s.pageContainer}>
+          <div className={`${s.card} ${s.cardWarning} ${s.mbMd}`}>
             <strong>Connection lost.</strong> Your game will reconnect automatically when internet access returns. Keep this tab open and re-enter the same session code and player name if you need to reconnect from a fresh sign-in.
           </div>
         </div>
@@ -70,13 +63,13 @@ export function GamePage() {
   if (session.status === 'setup' && playerState) {
     return renderPlayerShell(
       <div className={s.loadingPage}>
-        <div style={{ textAlign: 'center' }}>
-          <div className={s.spinner} style={{ marginBottom: '16px' }} />
+        <div className={styles.setupWaiting}>
+          <div className={`${s.spinner} ${styles.setupWaitingSpinner}`} />
           <h2>Setup Complete</h2>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '8px' }}>
+          <p className={styles.setupWaitingNote}>
             Waiting for other players to finish their setup...
           </p>
-          <p style={{ color: 'var(--text-light)', marginTop: '4px', fontSize: '14px' }}>
+          <p className={styles.setupWaitingCount}>
             {session.submittedCount} / {session.playerCount} ready
           </p>
         </div>

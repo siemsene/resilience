@@ -56,3 +56,15 @@
   border-color: transparent;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
 }
+
+.cellDimmed {
+  opacity: 0.5;
+}
+
+.row[data-country="china"] .label { color: var(--china-primary); }
+.row[data-country="mexico"] .label { color: var(--mexico-primary); }
+.row[data-country="us"] .label { color: var(--us-primary); }
+
+.row[data-country="china"] .cellActive { background-color: var(--china-primary); }
+.row[data-country="mexico"] .cellActive { background-color: var(--mexico-primary); }
+.row[data-country="us"] .cellActive { background-color: var(--us-primary); }

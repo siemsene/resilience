@@ -1,0 +1,18 @@
+.setupWaiting {
+  text-align: center;
+}
+
+.setupWaitingSpinner {
+  margin-bottom: 16px;
+}
+
+.setupWaitingNote {
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.setupWaitingCount {
+  color: var(--text-light);
+  margin-top: 4px;
+  font-size: 14px;
+}

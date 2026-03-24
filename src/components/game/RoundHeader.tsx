@@ -1,3 +1,4 @@
+import { CountdownTimer } from './CountdownTimer';
 import styles from './RoundHeader.module.css';
 
 interface Props {
@@ -9,6 +10,8 @@ interface Props {
   phase: string;
   submissionAlert?: string | null;
   submissionAlertUrgent?: boolean;
+  deadline?: number;
+  onTimerExpired?: () => void;
 }
 
 export function RoundHeader({
@@ -20,6 +23,8 @@ export function RoundHeader({
   phase,
   submissionAlert,
   submissionAlertUrgent = false,
+  deadline,
+  onTimerExpired,
 }: Props) {
   const phaseLabel = phase === 'ordering' ? 'Place Orders'
     : phase === 'processing' ? 'Processing...'
@@ -53,6 +58,9 @@ export function RoundHeader({
       </div>
 
       <div className={styles.phaseCluster}>
+        {deadline != null && onTimerExpired && (
+          <CountdownTimer deadline={deadline} onExpired={onTimerExpired} />
+        )}
         <div className={styles.phase}>
           <span className={styles.phaseLabel}>{phaseLabel}</span>
         </div>

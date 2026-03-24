@@ -1,6 +1,7 @@
 import type { SessionDoc } from '../../types';
 import s from '../../styles/shared.module.css';
 import styles from './PlayerLobby.module.css';
+import { downloadPlayerGuide } from '../../utils/playerGuide';
 
 interface Props {
   session: SessionDoc;
@@ -38,7 +39,10 @@ export function PlayerLobby({ session, playerId, playerName, onLeave }: Props) {
           </div>
         </div>
 
-        <button className={`${s.btnSecondary} ${s.btnSmall}`} onClick={onLeave} style={{ marginTop: '16px' }}>
+        <button className={`${s.btnSecondary} ${s.btnSmall} ${s.mtMd}`} onClick={downloadPlayerGuide}>
+          Download Player Guide
+        </button>
+        <button className={`${s.btnSecondary} ${s.btnSmall} ${s.mtSm}`} onClick={onLeave}>
           Leave Session
         </button>
       </div>

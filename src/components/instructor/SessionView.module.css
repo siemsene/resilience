@@ -90,6 +90,12 @@
   padding: var(--space-md) !important;
 }
 
+.playerSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .playerName {
   font-weight: 600;
 }
@@ -138,9 +144,16 @@
 
 .progressFill {
   height: 100%;
+  width: var(--progress-width, 0%);
   background: var(--color-success);
   border-radius: 4px;
   transition: width 0.3s ease;
+}
+
+.progressNote {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 8px;
 }
 
 .capacityHeaderRow {
