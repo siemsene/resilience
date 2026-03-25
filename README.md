@@ -87,6 +87,9 @@ Functions config / params:
 
 - `ADMIN_EMAIL`
 - `SMTP2GO_API_KEY` (optional; email notifications are skipped if missing)
+- `SMTP2GO_SENDER` (verified sender address/domain in SMTP2GO)
+- `SMTP2GO_SENDER_NAME` (optional display name for email notifications)
+- `SMTP2GO_REPLY_TO` (optional reply-to address for instructor/admin emails)
 
 ## Firestore Data Model
 

@@ -39,3 +39,5 @@ output
 coverage
 *.tsbuildinfo
 progress.md
+firebase.local.json
+scripts/emulator-multi-context-test.mjs

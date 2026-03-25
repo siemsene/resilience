@@ -59,5 +59,11 @@ export const adminUpdateInstructorStatus = onCall(async (request) => {
     reviewedAt: Date.now(),
   });
 
+  if (status === 'approved') {
+    await admin.auth().setCustomUserClaims(uid, { role: 'instructor' });
+  } else {
+    await admin.auth().setCustomUserClaims(uid, { role: null });
+  }
+
   return { success: true };
 });

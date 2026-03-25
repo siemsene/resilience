@@ -3,7 +3,8 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
 import { httpsCallable } from 'firebase/functions';
-import { auth, functions, ADMIN_EMAIL, ensurePlayerAuth } from '../../firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db, functions, ADMIN_EMAIL, ensurePlayerAuth } from '../../firebase';
 import { readPlayerRemovalFlash } from '../../utils/playerRemoval';
 import s from '../../styles/shared.module.css';
 import styles from './LandingPage.module.css';
@@ -62,6 +63,7 @@ export function LandingPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('player');
   const [error, setError] = useState('');
+  const [loginNotice, setLoginNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const [playerNotice, setPlayerNotice] = useState('');
 
@@ -92,6 +94,7 @@ export function LandingPage() {
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoginNotice('');
     setLoading(true);
     try {
       await ensurePlayerAuth();
@@ -112,6 +115,7 @@ export function LandingPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoginNotice('');
     setLoading(true);
     try {
       await signIn(loginEmail, loginPassword);
@@ -129,6 +133,26 @@ export function LandingPage() {
           navigate('/instructor');
           return;
         }
+
+        const instructorDoc = await getDoc(doc(db, 'instructors', signedInUser.uid));
+        const nextStatus = instructorDoc.exists()
+          ? ((instructorDoc.data() as { status?: string }).status ?? null)
+          : null;
+
+        if (nextStatus === 'pending') {
+          setLoginNotice('Your instructor registration is pending approval. You will receive an email once it is approved.');
+          return;
+        }
+
+        if (nextStatus === 'denied') {
+          setError('Your instructor registration was denied. Contact the administrator if you need access.');
+          return;
+        }
+
+        if (nextStatus === 'revoked') {
+          setError('Your instructor access has been revoked. Contact the administrator if this was unexpected.');
+          return;
+        }
       }
     } catch (err) {
       setError(getCallableErrorMessage(err, 'Login failed'));
@@ -140,6 +164,7 @@ export function LandingPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoginNotice('');
     if (regPassword.length < 6) {
       setError('Password must be at least 6 characters');
       return;
@@ -232,6 +257,7 @@ export function LandingPage() {
                 <input id="login-password" className={s.input} type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
               </div>
               {error && <p className={s.error}>{error}</p>}
+              {loginNotice && <p className={s.pendingNote}>{loginNotice}</p>}
               <button type="submit" className={`${s.btnPrimary} ${s.btnFullWidth}`} disabled={loading}>
                 {loading ? 'Signing in...' : 'Sign In'}
               </button>
