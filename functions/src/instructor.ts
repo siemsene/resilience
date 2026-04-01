@@ -79,9 +79,9 @@ export const onInstructorCreated = onDocumentCreated(
 
     await sendEmail(
       adminEmail.value(),
-      'New Instructor Application',
-      `New instructor application\n\nName: ${data.displayName}\nEmail: ${data.email}\nInstitution: ${data.institution}\n\nLog in to the admin dashboard to review this application.`,
-      `<h2>New Instructor Application</h2>
+      'Supply Chain Resilience – New Instructor Application',
+      `New instructor application for Supply Chain Resilience\n\nName: ${data.displayName}\nEmail: ${data.email}\nInstitution: ${data.institution}\n\nLog in to the admin dashboard to review this application.`,
+      `<h2>Supply Chain Resilience – New Instructor Application</h2>
       <p><strong>Name:</strong> ${safeName}</p>
       <p><strong>Email:</strong> ${safeEmail}</p>
       <p><strong>Institution:</strong> ${safeInstitution}</p>
