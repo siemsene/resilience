@@ -7,7 +7,7 @@ export { submitInitialSetup } from './setup';
 export { submitOrders } from './orders';
 export { confirmRoundResults } from './confirmRoundResults';
 export { onInstructorCreated, onInstructorStatusChanged } from './instructor';
-export { adminListInstructors, adminListSessions, adminUpdateInstructorStatus } from './admin';
+export { adminListInstructors, adminListSessions, adminUpdateInstructorStatus, adminResetPassword } from './admin';
 export { cleanupExpiredSessions } from './cleanup';
 export { startGame } from './startGame';
 export { forceAdvance } from './forceAdvance';

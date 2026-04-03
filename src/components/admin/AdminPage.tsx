@@ -59,6 +59,26 @@ export function AdminPage() {
     }
   };
 
+  const resetPassword = async (uid: string, displayName: string) => {
+    const newPassword = window.prompt(`Enter new password for ${displayName} (min 6 characters):`);
+    if (!newPassword) return;
+    if (newPassword.length < 6) {
+      setInstructorError('Password must be at least 6 characters');
+      return;
+    }
+    setInstructorError('');
+    setUpdatingUid(uid);
+    try {
+      const resetFn = httpsCallable<{ uid: string; newPassword: string }, { success: boolean }>(functions, 'adminResetPassword');
+      await resetFn({ uid, newPassword });
+      alert('Password reset successfully');
+    } catch (err) {
+      setInstructorError(getErrorMessage(err, 'Failed to reset password'));
+    } finally {
+      setUpdatingUid(null);
+    }
+  };
+
   const pending = instructors.filter((i) => i.status === 'pending');
   const others = instructors.filter((i) => i.status !== 'pending');
 
@@ -118,6 +138,8 @@ export function AdminPage() {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Institution</th>
+                <th>Sessions</th>
+                <th>Players</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -128,6 +150,8 @@ export function AdminPage() {
                   <td>{inst.displayName}</td>
                   <td>{inst.email}</td>
                   <td>{inst.institution}</td>
+                  <td>{inst.completedSessions ?? 0}</td>
+                  <td>{inst.totalPlayers ?? 0}</td>
                   <td>{statusBadge(inst.status)}</td>
                   <td>
                     {inst.status === 'approved' && (
@@ -140,6 +164,9 @@ export function AdminPage() {
                         Approve
                       </button>
                     )}
+                    <button className={`${s.btnSecondary} ${s.btnSmall}`} onClick={() => resetPassword(inst.uid, inst.displayName)} disabled={updatingUid === inst.uid}>
+                      Reset Password
+                    </button>
                   </td>
                 </tr>
               ))}

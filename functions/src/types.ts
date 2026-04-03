@@ -106,6 +106,8 @@ export interface InstructorRecord {
   status: InstructorStatus;
   appliedAt: number;
   reviewedAt?: number;
+  completedSessions?: number;
+  totalPlayers?: number;
 }
 
 export type InstructorStatus = 'pending' | 'approved' | 'denied' | 'revoked';

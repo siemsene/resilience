@@ -20,8 +20,26 @@ function assertAdmin(request: { auth?: { token?: { email?: string | null } } }) 
 export const adminListInstructors = onCall(async (request) => {
   assertAdmin(request);
 
-  const snap = await db.collection('instructors').orderBy('appliedAt', 'desc').get();
-  const instructors = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+  const [snap, completedSnap] = await Promise.all([
+    db.collection('instructors').orderBy('appliedAt', 'desc').get(),
+    db.collection('sessions').where('status', '==', 'completed').get(),
+  ]);
+
+  const statsMap = new Map<string, { completedSessions: number; totalPlayers: number }>();
+  for (const doc of completedSnap.docs) {
+    const data = doc.data();
+    const uid = data.instructorUid as string | undefined;
+    if (!uid) continue;
+    const entry = statsMap.get(uid) ?? { completedSessions: 0, totalPlayers: 0 };
+    entry.completedSessions += 1;
+    entry.totalPlayers += (data.playerCount as number) || 0;
+    statsMap.set(uid, entry);
+  }
+
+  const instructors = snap.docs.map((d) => {
+    const stats = statsMap.get(d.id) ?? { completedSessions: 0, totalPlayers: 0 };
+    return { uid: d.id, ...d.data(), ...stats };
+  });
 
   return { instructors };
 });
@@ -64,6 +82,28 @@ export const adminUpdateInstructorStatus = onCall(async (request) => {
   } else {
     await admin.auth().setCustomUserClaims(uid, { role: null });
   }
+
+  return { success: true };
+});
+
+export const adminResetPassword = onCall(async (request) => {
+  assertAdmin(request);
+
+  const { uid, newPassword } = request.data as { uid?: string; newPassword?: string };
+
+  if (!uid || typeof uid !== 'string') {
+    throw new HttpsError('invalid-argument', 'uid is required');
+  }
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+    throw new HttpsError('invalid-argument', 'Password must be at least 6 characters');
+  }
+
+  const instructorSnap = await db.collection('instructors').doc(uid).get();
+  if (!instructorSnap.exists) {
+    throw new HttpsError('not-found', 'Instructor not found');
+  }
+
+  await admin.auth().updateUser(uid, { password: newPassword });
 
   return { success: true };
 });

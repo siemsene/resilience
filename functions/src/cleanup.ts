@@ -4,7 +4,7 @@ import * as admin from 'firebase-admin';
 const db = admin.firestore();
 const RETAIN_EXPIRED_MS = 7 * 24 * 60 * 60 * 1000;
 
-export const cleanupExpiredSessions = onSchedule('every 24 hours', async () => {
+export const cleanupExpiredSessions = onSchedule('every 168 hours', async () => {
   const now = Date.now();
   const activeExpiredSnap = await db.collection('sessions')
     .where('expiresAt', '<', now)

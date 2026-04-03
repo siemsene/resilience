@@ -55,6 +55,8 @@ export interface InstructorRecord {
   status: InstructorStatus;
   appliedAt: number;
   reviewedAt?: number;
+  completedSessions?: number;
+  totalPlayers?: number;
 }
 
 export type SessionStatus = 'lobby' | 'setup' | 'active' | 'completed' | 'expired';
