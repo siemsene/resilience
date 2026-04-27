@@ -4,6 +4,7 @@ import {
   browserSessionPersistence,
   connectAuthEmulator,
   getAuth,
+  sendPasswordResetEmail,
   setPersistence,
   signInAnonymously,
 } from 'firebase/auth';
@@ -42,6 +43,10 @@ export async function ensurePlayerAuth() {
   await setPersistence(auth, browserSessionPersistence);
   const credential = await signInAnonymously(auth);
   return credential.user;
+}
+
+export async function resetPassword(email: string) {
+  await sendPasswordResetEmail(auth, email);
 }
 
 export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || '';

@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
 import { httpsCallable } from 'firebase/functions';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db, functions, ADMIN_EMAIL, ensurePlayerAuth } from '../../firebase';
+import { auth, db, functions, ADMIN_EMAIL, ensurePlayerAuth, resetPassword } from '../../firebase';
 import { readPlayerRemovalFlash } from '../../utils/playerRemoval';
 import s from '../../styles/shared.module.css';
 import styles from './LandingPage.module.css';
@@ -75,6 +75,9 @@ export function LandingPage() {
   const [regPassword, setRegPassword] = useState('');
   const [regName, setRegName] = useState('');
   const [regInstitution, setRegInstitution] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
 
   useEffect(() => {
     const flashMessage = readPlayerRemovalFlash();
@@ -156,6 +159,20 @@ export function LandingPage() {
       }
     } catch (err) {
       setError(getCallableErrorMessage(err, 'Login failed'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await resetPassword(resetEmail);
+      setResetSent(true);
+    } catch (err) {
+      setError(getCallableErrorMessage(err, 'Failed to send reset email'));
     } finally {
       setLoading(false);
     }
@@ -246,7 +263,7 @@ export function LandingPage() {
             </form>
           )}
 
-          {tab === 'login' && (
+          {tab === 'login' && !showForgotPassword && (
             <form onSubmit={handleLogin}>
               <div className={s.formGroup}>
                 <label className={s.label} htmlFor="login-email">Email</label>
@@ -261,12 +278,55 @@ export function LandingPage() {
               <button type="submit" className={`${s.btnPrimary} ${s.btnFullWidth}`} disabled={loading}>
                 {loading ? 'Signing in...' : 'Sign In'}
               </button>
+              <button
+                type="button"
+                className={styles.forgotPasswordLink}
+                onClick={() => { setShowForgotPassword(true); setError(''); setResetEmail(loginEmail); setResetSent(false); }}
+              >
+                Forgot Password?
+              </button>
               {user && instructorStatus === 'pending' && (
                 <p className={s.pendingNote}>
                   Your application is pending review.
                 </p>
               )}
             </form>
+          )}
+
+          {tab === 'login' && showForgotPassword && (
+            resetSent ? (
+              <div>
+                <p className={s.pendingNote}>
+                  If an account exists for that email, a password reset link has been sent. Check your inbox and spam folder.
+                </p>
+                <button
+                  type="button"
+                  className={styles.forgotPasswordLink}
+                  onClick={() => { setShowForgotPassword(false); setError(''); setResetSent(false); }}
+                >
+                  Back to Login
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword}>
+                <p className={s.noteText}>Enter your email address and we'll send you a link to reset your password.</p>
+                <div className={s.formGroup}>
+                  <label className={s.label} htmlFor="reset-email">Email</label>
+                  <input id="reset-email" className={s.input} type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required />
+                </div>
+                {error && <p className={s.error}>{error}</p>}
+                <button type="submit" className={`${s.btnPrimary} ${s.btnFullWidth}`} disabled={loading}>
+                  {loading ? 'Sending...' : 'Send Reset Email'}
+                </button>
+                <button
+                  type="button"
+                  className={styles.forgotPasswordLink}
+                  onClick={() => { setShowForgotPassword(false); setError(''); }}
+                >
+                  Back to Login
+                </button>
+              </form>
+            )
           )}
 
           {tab === 'register' && (
