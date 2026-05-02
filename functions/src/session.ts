@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import type { SessionDoc, SessionPlayerDoc } from './types';
 import { CALLABLE_OPTIONS } from './callableOptions';
+import { assertRateLimit } from './rateLimiter';
 import {
   getSessionByCode,
   normalizePlayerName,
@@ -14,6 +15,8 @@ import {
 } from './sessionState';
 
 const db = admin.firestore();
+const SESSION_CODE_REGEX = /^[A-HJ-NP-Z2-9]{6}$/;
+const MAX_PLAYERS_PER_SESSION = 100;
 
 function generatePlayerId(): string {
   return db.collection('_temp').doc().id;
@@ -29,6 +32,9 @@ function validatePlayerEntryInput(
   }
   if (!sessionCode || typeof sessionCode !== 'string') {
     throw new HttpsError('invalid-argument', 'Session code is required');
+  }
+  if (!SESSION_CODE_REGEX.test(sessionCode.toUpperCase().trim())) {
+    throw new HttpsError('invalid-argument', 'Invalid session code format');
   }
   if (!playerName || typeof playerName !== 'string' || playerName.trim().length === 0) {
     throw new HttpsError('invalid-argument', 'Player name is required');
@@ -60,6 +66,12 @@ async function enterSessionWithName(uid: string, sessionCode: string, playerName
     const playerNameSnap = await transaction.get(sessionPlayerNameRef(sessionId, nameKey));
 
     if (freshSession.status === 'lobby') {
+      if ((freshSession.playerCount ?? 0) >= MAX_PLAYERS_PER_SESSION) {
+        throw new HttpsError(
+          'resource-exhausted',
+          `This session has reached the maximum of ${MAX_PLAYERS_PER_SESSION} players.`,
+        );
+      }
       if (playerNameSnap.exists) {
         throw new HttpsError('already-exists', 'A player with that name already exists in this session');
       }
@@ -168,6 +180,11 @@ export const joinSession = onCall(CALLABLE_OPTIONS, async (request) => {
   const { sessionCode, playerName } = request.data as { sessionCode?: string; playerName?: string };
 
   validatePlayerEntryInput(uid, sessionCode, playerName);
+  await assertRateLimit(uid as string, 'sessionEntry', {
+    max: 10,
+    windowMs: 60_000,
+    message: 'Too many join attempts. Please wait a minute and try again.',
+  });
   return enterSessionWithName(uid as string, sessionCode as string, playerName as string);
 });
 
@@ -176,5 +193,10 @@ export const reconnectPlayer = onCall(CALLABLE_OPTIONS, async (request) => {
   const { sessionCode, playerName } = request.data as { sessionCode?: string; playerName?: string };
 
   validatePlayerEntryInput(uid, sessionCode, playerName);
+  await assertRateLimit(uid as string, 'sessionEntry', {
+    max: 10,
+    windowMs: 60_000,
+    message: 'Too many reconnect attempts. Please wait a minute and try again.',
+  });
   return enterSessionWithName(uid as string, sessionCode as string, playerName as string);
 });

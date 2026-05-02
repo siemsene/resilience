@@ -1,4 +1,7 @@
+import { setGlobalOptions } from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
+
+setGlobalOptions({ maxInstances: 20, concurrency: 80 });
 admin.initializeApp();
 
 export { createSession } from './createSession';
