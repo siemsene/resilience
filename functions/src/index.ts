@@ -12,3 +12,4 @@ export { cleanupExpiredSessions } from './cleanup';
 export { startGame } from './startGame';
 export { forceAdvance } from './forceAdvance';
 export { endSessionEarly, deleteSession, removePlayer } from './sessionManagement';
+export { billingKillSwitch } from './billingKillSwitch';
