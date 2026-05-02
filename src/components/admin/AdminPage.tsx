@@ -103,8 +103,10 @@ export function AdminPage() {
     const a = document.createElement('a');
     a.href = url;
     a.download = 'approved-instructors.xlsx';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const pending = instructors.filter((i) => i.status === 'pending');
@@ -117,6 +119,12 @@ export function AdminPage() {
           : s.badgePending;
     return <span className={cls}>{status}</span>;
   };
+
+  const verificationBadge = (verified: boolean | undefined) => (
+    <span className={verified ? s.badgeApproved : s.badgePending}>
+      {verified ? 'Email verified' : 'Email not verified'}
+    </span>
+  );
 
   return (
     <div className={s.pageContainer}>
@@ -144,6 +152,7 @@ export function AdminPage() {
                   <span className={styles.meta}>{inst.email}</span>
                   <span className={styles.meta}>{inst.institution}</span>
                   <span className={styles.meta}>Applied {new Date(inst.appliedAt).toLocaleDateString()}</span>
+                  <span className={styles.meta}>{verificationBadge(inst.emailVerified)}</span>
                 </div>
                 <div className={styles.actions}>
                   <button className={s.btnSuccess} onClick={() => updateStatus(inst.uid, 'approved')} disabled={updatingUid === inst.uid}>Approve</button>
@@ -174,6 +183,7 @@ export function AdminPage() {
                 <th>Sessions</th>
                 <th>Players</th>
                 <th>Status</th>
+                <th>Email</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -186,6 +196,7 @@ export function AdminPage() {
                   <td>{inst.completedSessions ?? 0}</td>
                   <td>{inst.totalPlayers ?? 0}</td>
                   <td>{statusBadge(inst.status)}</td>
+                  <td>{verificationBadge(inst.emailVerified)}</td>
                   <td>
                     {inst.status === 'approved' && (
                       <button className={`${s.btnDanger} ${s.btnSmall}`} onClick={() => updateStatus(inst.uid, 'revoked')} disabled={updatingUid === inst.uid}>

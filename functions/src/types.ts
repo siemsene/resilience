@@ -108,6 +108,7 @@ export interface InstructorRecord {
   reviewedAt?: number;
   completedSessions?: number;
   totalPlayers?: number;
+  emailVerified?: boolean;
 }
 
 export type InstructorStatus = 'pending' | 'approved' | 'denied' | 'revoked';

@@ -3,6 +3,7 @@ import {
   onIdTokenChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   signOut as fbSignOut,
   type User,
 } from 'firebase/auth';
@@ -108,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (email: string, password: string, displayName: string, institution: string) => {
     await prepareInstructorAuth();
     const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await sendEmailVerification(cred.user);
     await setDoc(doc(db, 'instructors', cred.user.uid), {
       uid: cred.user.uid,
       email,

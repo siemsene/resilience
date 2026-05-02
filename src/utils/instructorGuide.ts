@@ -441,6 +441,8 @@ export async function downloadInstructorGuide(): Promise<void> {
   const a = document.createElement('a');
   a.href = url;
   a.download = 'Instructor_Guide.docx';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

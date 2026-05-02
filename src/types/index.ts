@@ -57,6 +57,7 @@ export interface InstructorRecord {
   reviewedAt?: number;
   completedSessions?: number;
   totalPlayers?: number;
+  emailVerified?: boolean;
 }
 
 export type SessionStatus = 'lobby' | 'setup' | 'active' | 'completed' | 'expired';

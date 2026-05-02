@@ -26,6 +26,17 @@ export const adminListInstructors = onCall(CALLABLE_OPTIONS, async (request) => 
     db.collection('sessions').where('status', '==', 'completed').get(),
   ]);
 
+  // One-time backfill: existing instructors predate email verification, so grandfather
+  // them as verified in Firebase Auth. Idempotent via marker doc; subsequent calls skip.
+  const backfillMarkerRef = db.collection('_migrations').doc('emailVerificationBackfill');
+  const backfillSnap = await backfillMarkerRef.get();
+  if (!backfillSnap.exists) {
+    await Promise.all(snap.docs.map((d) =>
+      admin.auth().updateUser(d.id, { emailVerified: true }).catch(() => undefined),
+    ));
+    await backfillMarkerRef.set({ completedAt: Date.now() });
+  }
+
   const statsMap = new Map<string, { completedSessions: number; totalPlayers: number }>();
   for (const doc of completedSnap.docs) {
     const data = doc.data();
@@ -37,9 +48,25 @@ export const adminListInstructors = onCall(CALLABLE_OPTIONS, async (request) => 
     statsMap.set(uid, entry);
   }
 
+  const verifiedMap = new Map<string, boolean>();
+  const uids = snap.docs.map((d) => d.id);
+  for (let i = 0; i < uids.length; i += 100) {
+    const chunk = uids.slice(i, i + 100).map((uid) => ({ uid }));
+    if (chunk.length === 0) continue;
+    const result = await admin.auth().getUsers(chunk);
+    for (const user of result.users) {
+      verifiedMap.set(user.uid, user.emailVerified);
+    }
+  }
+
   const instructors = snap.docs.map((d) => {
     const stats = statsMap.get(d.id) ?? { completedSessions: 0, totalPlayers: 0 };
-    return { uid: d.id, ...d.data(), ...stats };
+    return {
+      uid: d.id,
+      ...d.data(),
+      ...stats,
+      emailVerified: verifiedMap.get(d.id) ?? false,
+    };
   });
 
   return { instructors };
