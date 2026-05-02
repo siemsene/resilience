@@ -26,13 +26,22 @@ dist-ssr
 *.sln
 *.sw?
 
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
 # Firebase
 functions/lib
 .firebase
+functions/.runtimeconfig.json
 
 # Environment
-.env.local
 .env
+.env.*
+!.env.example
+!.env.*.example
+!.env.local.example
 
 # Local tooling output
 output

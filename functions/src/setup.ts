@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
+import { CALLABLE_OPTIONS } from './callableOptions';
 import {
   SUPPLIER_KEYS,
   SUPPLIER_COUNTRY,
@@ -101,7 +102,7 @@ export async function finalizeSetupPhase(sessionId: string) {
   await batch.commit();
 }
 
-export const submitInitialSetup = onCall(async (request) => {
+export const submitInitialSetup = onCall(CALLABLE_OPTIONS, async (request) => {
   const { sessionId, playerId, allocations } = request.data as {
     sessionId?: string;
     playerId?: string;

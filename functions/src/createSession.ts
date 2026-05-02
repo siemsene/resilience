@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import type { DisruptionSchedule, SessionDoc, SessionParams } from './types';
+import { CALLABLE_OPTIONS } from './callableOptions';
 import {
   buildEmptyDisruptions,
   sessionInstructorStateRef,
@@ -34,7 +35,7 @@ async function generateUniqueSessionCode() {
   throw new HttpsError('resource-exhausted', 'Unable to allocate a unique session code');
 }
 
-export const createSession = onCall(async (request) => {
+export const createSession = onCall(CALLABLE_OPTIONS, async (request) => {
   const uid = request.auth?.uid;
   const role = (request.auth?.token as { role?: string } | undefined)?.role;
   const { sessionName, params, disruptionSchedule } = request.data as {

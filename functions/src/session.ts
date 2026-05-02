@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import type { SessionDoc, SessionPlayerDoc } from './types';
+import { CALLABLE_OPTIONS } from './callableOptions';
 import {
   getSessionByCode,
   normalizePlayerName,
@@ -162,7 +163,7 @@ async function enterSessionWithName(uid: string, sessionCode: string, playerName
   };
 }
 
-export const joinSession = onCall(async (request) => {
+export const joinSession = onCall(CALLABLE_OPTIONS, async (request) => {
   const uid = request.auth?.uid;
   const { sessionCode, playerName } = request.data as { sessionCode?: string; playerName?: string };
 
@@ -170,7 +171,7 @@ export const joinSession = onCall(async (request) => {
   return enterSessionWithName(uid as string, sessionCode as string, playerName as string);
 });
 
-export const reconnectPlayer = onCall(async (request) => {
+export const reconnectPlayer = onCall(CALLABLE_OPTIONS, async (request) => {
   const uid = request.auth?.uid;
   const { sessionCode, playerName } = request.data as { sessionCode?: string; playerName?: string };
 

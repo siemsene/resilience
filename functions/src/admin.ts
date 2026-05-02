@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineString } from 'firebase-functions/params';
 import * as admin from 'firebase-admin';
 import type { InstructorStatus } from './types';
+import { CALLABLE_OPTIONS } from './callableOptions';
 
 const db = admin.firestore();
 const adminEmail = defineString('ADMIN_EMAIL');
@@ -17,7 +18,7 @@ function assertAdmin(request: { auth?: { token?: { email?: string | null } } }) 
   }
 }
 
-export const adminListInstructors = onCall(async (request) => {
+export const adminListInstructors = onCall(CALLABLE_OPTIONS, async (request) => {
   assertAdmin(request);
 
   const [snap, completedSnap] = await Promise.all([
@@ -44,7 +45,7 @@ export const adminListInstructors = onCall(async (request) => {
   return { instructors };
 });
 
-export const adminListSessions = onCall(async (request) => {
+export const adminListSessions = onCall(CALLABLE_OPTIONS, async (request) => {
   assertAdmin(request);
 
   const snap = await db.collection('sessions').orderBy('createdAt', 'desc').limit(100).get();
@@ -53,7 +54,7 @@ export const adminListSessions = onCall(async (request) => {
   return { sessions };
 });
 
-export const adminUpdateInstructorStatus = onCall(async (request) => {
+export const adminUpdateInstructorStatus = onCall(CALLABLE_OPTIONS, async (request) => {
   assertAdmin(request);
 
   const { uid, status } = request.data as { uid?: string; status?: InstructorStatus };
@@ -86,7 +87,7 @@ export const adminUpdateInstructorStatus = onCall(async (request) => {
   return { success: true };
 });
 
-export const adminResetPassword = onCall(async (request) => {
+export const adminResetPassword = onCall(CALLABLE_OPTIONS, async (request) => {
   assertAdmin(request);
 
   const { uid, newPassword } = request.data as { uid?: string; newPassword?: string };

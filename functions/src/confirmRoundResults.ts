@@ -2,11 +2,12 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { advanceResultsPhase } from './roundProcessing';
 import { PlayerStateDoc, SessionDoc, SessionInstructorState } from './types';
+import { CALLABLE_OPTIONS } from './callableOptions';
 import { sessionInstructorStateRef, sessionPlayerRef, sessionPublicStateRef, sessionRef } from './sessionState';
 
 const db = admin.firestore();
 
-export const confirmRoundResults = onCall(async (request) => {
+export const confirmRoundResults = onCall(CALLABLE_OPTIONS, async (request) => {
   const { sessionId, playerId } = request.data as {
     sessionId?: string;
     playerId?: string;

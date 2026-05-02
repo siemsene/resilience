@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import {
   browserLocalPersistence,
   browserSessionPersistence,
@@ -21,6 +22,22 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+if (import.meta.env.DEV) {
+  // Use the explicit debug token if set in .env; otherwise let Firebase
+  // generate one and log it to the browser console on first run.
+  const debugToken = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN;
+  (self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean | string })
+    .FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken || true;
+}
+if (recaptchaSiteKey) {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(recaptchaSiteKey),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app);

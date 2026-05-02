@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import { advanceResultsPhase, executeRoundProcessing } from './roundProcessing';
 import { finalizeSetupPhase } from './setup';
 import type { SessionDoc, SessionMemberDoc, SessionPlayerDoc } from './types';
+import { CALLABLE_OPTIONS } from './callableOptions';
 import {
   buildEmptyDisruptions,
   sessionInstructorStateRef,
@@ -21,7 +22,7 @@ function assertInstructor(session: SessionDoc, uid: string) {
   }
 }
 
-export const endSessionEarly = onCall(async (request) => {
+export const endSessionEarly = onCall(CALLABLE_OPTIONS, async (request) => {
   const { sessionId } = request.data as { sessionId?: string };
   const uid = request.auth?.uid;
 
@@ -70,7 +71,7 @@ export const endSessionEarly = onCall(async (request) => {
   return { success: true };
 });
 
-export const deleteSession = onCall(async (request) => {
+export const deleteSession = onCall(CALLABLE_OPTIONS, async (request) => {
   const { sessionId } = request.data as { sessionId?: string };
   const uid = request.auth?.uid;
 
@@ -106,7 +107,7 @@ async function cleanupPlayerRoundOrders(sessionId: string, playerId: string) {
   await batch.commit();
 }
 
-export const removePlayer = onCall(async (request) => {
+export const removePlayer = onCall(CALLABLE_OPTIONS, async (request) => {
   const { sessionId, playerId } = request.data as { sessionId?: string; playerId?: string };
   const uid = request.auth?.uid;
 

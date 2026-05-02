@@ -1,13 +1,14 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { SUPPLIER_KEYS, SUPPLIER_COUNTRY, OrderMap, PlayerStateDoc, SessionDoc } from './types';
+import { CALLABLE_OPTIONS } from './callableOptions';
 import { getCurrentSupplierMaxOrder } from './orderLimits';
 import { executeRoundProcessing } from './roundProcessing';
 import { sessionInstructorStateRef, sessionPlayerRef, sessionPublicStateRef, sessionRef } from './sessionState';
 
 const db = admin.firestore();
 
-export const submitOrders = onCall(async (request) => {
+export const submitOrders = onCall(CALLABLE_OPTIONS, async (request) => {
   const { sessionId, playerId, orders } = request.data as {
     sessionId?: string;
     playerId?: string;

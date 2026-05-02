@@ -12,6 +12,7 @@ import { calculateUnitCost } from './gameLogic';
 import { getInitialSupplierMaxOrder } from './orderLimits';
 import { advanceResultsPhase, executeRoundProcessing } from './roundProcessing';
 import { finalizeSetupPhase } from './setup';
+import { CALLABLE_OPTIONS } from './callableOptions';
 import {
   sessionInstructorStateRef,
   sessionPlayerRef,
@@ -21,7 +22,7 @@ import {
 } from './sessionState';
 
 
-export const forceAdvance = onCall(async (request) => {
+export const forceAdvance = onCall(CALLABLE_OPTIONS, async (request) => {
   const { sessionId } = request.data as { sessionId?: string };
   const uid = request.auth?.uid;
 
